@@ -376,7 +376,7 @@ Equal(2, loaded.Value.Collapsed.Length, "collapsed");
   - Left / Right 切换展开图标（U+25BE ↔ U+25B8）。
   - `--restore-ui` 启动后 `SearchBox=svchost`，状态文件被删除。
 - UAC 弹窗本身仍无法在自检中自动化；提权后的恢复逻辑通过状态文件与参数拼接用例覆盖，UAC 交互留手工验证。
-- Round 5 当时未运行 `release.ps1`；最终 0.2.0 发布包见下节。
+- Round 5 当时未运行 `release.ps1`；最终 0.1.01 发布包见下节。
 
 ## 后续补丁：收尾三个洞（2026-11-22）
 
@@ -393,11 +393,11 @@ Equal(2, loaded.Value.Collapsed.Length, "collapsed");
 - UIA：PID 升序在树形/平铺往返、搜索强制平铺、清空搜索后保留；`--restore-ui` 首屏按保存的排序显示；排序箭头可见；折叠大量分支后选中子行，切平铺选中不丢。
 - 排序不是实时排序：这是 `ListCollectionView` 的既定行为，README 已注明；箭头只表示当前排序条件。
 
-### 0.2.0 发布产物
+### 0.1.01 发布产物
 
-- 包：`dist\TaskMgrLite-win-x64-0.2.0.zip`，59.9MB（260 files / 137.8MB unpacked）。
-- SHA256：`26D002013906D31075DC20F0974CEEFAD388E2D2ADFD3895189A2339D85CE9F3`。
-- exe 文件版本：`0.2.0.0`；`VERSION.txt`：`TaskMgrLite 0.2.0`。
-- `release.ps1 -Version 0.2.0 -Ui` 验证：selftest 65/0、diag-round3/4 通过、树形/平铺选中 UIA 通过、右键菜单 UIA 4/4 通过。
-- 最终包因 README 文案更新用 `release.ps1 -Version 0.2.0` 重建一次（selftest + diag 仍全绿）；代码与 UI 验证通过的构建一致。
+- 包：`dist\TaskMgrLite-win-x64-0.1.01.zip`，59.9MB（260 files / 137.8MB unpacked）。
+- SHA256：`94394B0798AED673CEA43F52228F061D25280CA40196DC0801EC9EC8641A6658`。
+- exe 文件版本：`0.1.01.0`；`VERSION.txt`：`TaskMgrLite 0.1.01`；ProductVersion `0.1.01+e620f0b`。
+- UI 回归（树形/平铺选中、右键菜单 4/4）在 0.2.0 同代码构建上通过；版本改为 0.1.01 后用 `release.ps1 -Version 0.1.01` 重建最终包，selftest 65/0 + diag 全绿，代码未变。
+- tag `v0.1.01` 指向 `e620f0b`；`dist/` 已清理旧的 0.1.0、0.2.0、20261122 包。
 - 包内无 PDB / XML / log；README、LICENSE、docs、.NET `LICENSE.txt`、`ThirdPartyNotices.txt` 齐全。
