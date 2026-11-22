@@ -1,0 +1,357 @@
+﻿<Window x:Class="TaskMgrLite.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="TaskMgrLite · Round 4"
+        Width="1240" Height="780"
+        MinWidth="900" MinHeight="420"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBackground}"
+        Foreground="{StaticResource TextPrimary}"
+        FontFamily="Segoe UI"
+        FontSize="13"
+        TextOptions.TextFormattingMode="Display"
+        UseLayoutRounding="True">
+
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis" />
+
+        <ContextMenu x:Key="RowContextMenu">
+            <MenuItem Header="打开文件所在位置" Click="OnOpenLocationClick" />
+            <MenuItem Header="复制 PID" Click="OnCopyPidClick" />
+            <MenuItem Header="复制路径" Click="OnCopyPathClick" />
+            <Separator />
+            <MenuItem Header="结束进程" Click="OnKillProcessClick" />
+            <MenuItem Header="结束进程树" Click="OnKillTreeClick" />
+        </ContextMenu>
+
+        <ContextMenu x:Key="BlankContextMenu">
+            <MenuItem Header="刷新" Click="OnRefreshClick" />
+        </ContextMenu>
+    </Window.Resources>
+
+    <Grid>
+
+    <DockPanel>
+
+        <!-- 顶栏 -->
+        <Border DockPanel.Dock="Top"
+                Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="14,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="280" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="进程"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Margin="0,0,16,0" />
+
+                <TextBox Grid.Column="1"
+                         x:Name="SearchBox"
+                         Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         ToolTip="按进程名或 PID 过滤（命令行搜索 Round 1 再开）"
+                         VerticalAlignment="Center" />
+
+                <TextBlock Grid.Column="2"
+                           Text="{Binding CountText}"
+                           Foreground="{StaticResource TextMuted}"
+                           VerticalAlignment="Center"
+                           Margin="16,0,0,0" />
+
+                <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource ToolbarButton}"
+                            Content="{Binding ModeLabel}"
+                            Click="OnModeClick"
+                            ToolTip="在树形与平铺之间切换（点列头排序会自动切平铺）" />
+                    <TextBlock Text="{Binding ModeText}"
+                               Foreground="{StaticResource TextMuted}"
+                               VerticalAlignment="Center"
+                               Margin="12,0,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 底栏 -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="14,6">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock Grid.Column="0"
+                           Text="{Binding StatusText}"
+                           Foreground="{StaticResource TextMuted}"
+                           TextTrimming="CharacterEllipsis" />
+
+                <TextBlock Grid.Column="1"
+                           Text="点列头排序 · --stats 每 2s 输出资源采样"
+                           Foreground="{StaticResource TextMuted}"
+                           Margin="16,0,0,0" />
+            </Grid>
+        </Border>
+
+        <!-- 详情面板：只有选中行时才出现；路径/用户名/命令行都是选中时懒加载 -->
+        <Border DockPanel.Dock="Bottom"
+                Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,1,0,0"
+                Padding="14,10"
+                Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="280" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,18,0">
+                    <TextBlock Text="{Binding SelectedRow.Name}"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <TextBlock Text="PID " Foreground="{StaticResource TextMuted}" />
+                        <TextBlock Text="{Binding SelectedRow.Pid}" />
+                        <TextBlock Text="   父 PID " Foreground="{StaticResource TextMuted}" />
+                        <TextBlock Text="{Binding SelectedRow.ParentPid}" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock Text="启动时间 " Foreground="{StaticResource TextMuted}" />
+                        <TextBlock Text="{Binding SelectedRow.StartTimeDisplay}" />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock Text="用户 " Foreground="{StaticResource TextMuted}" />
+                        <TextBlock Text="{Binding SelectedRow.UserName}"
+                                   TextTrimming="CharacterEllipsis"
+                                   ToolTip="{Binding SelectedRow.UserName}" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="路径" Foreground="{StaticResource TextMuted}" />
+                    <TextBlock Text="{Binding SelectedRow.ImagePath}"
+                               Margin="0,2,0,8"
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding SelectedRow.ImagePath}" />
+
+                    <TextBlock Text="命令行" Foreground="{StaticResource TextMuted}" />
+                    <TextBlock Text="{Binding SelectedRow.CommandLine}"
+                               Margin="0,2,0,0"
+                               TextWrapping="Wrap"
+                               MaxHeight="46"
+                               ToolTip="{Binding SelectedRow.CommandLine}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 进程列表 -->
+        <ListView x:Name="ProcessList"
+                  ItemsSource="{Binding View}"
+                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                  Margin="0,6,0,0"
+                  SelectionMode="Single"
+                  AlternationCount="2">
+            <ListView.View>
+                <GridView AllowsColumnReorder="True">
+
+                    <GridViewColumn Width="300">
+                        <GridViewColumn.Header>
+                            <TextBlock Text="名称" Tag="Name" />
+                        </GridViewColumn.Header>
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" Margin="8,0,0,0">
+                                    <Border Width="{Binding IndentWidth}" />
+                                    <Button Style="{StaticResource GlyphButton}"
+                                            Content="{Binding ToggleGlyph}"
+                                            Click="OnExpanderClick"
+                                            Margin="0,0,2,0"
+                                            ToolTip="展开 / 折叠子进程" />
+                                    <TextBlock Text="{Binding Name}"
+                                               TextTrimming="CharacterEllipsis"
+                                               VerticalAlignment="Center"
+                                               ToolTip="{Binding Name}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Width="82">
+                        <GridViewColumn.Header>
+                            <TextBlock Text="PID" Tag="Pid" />
+                        </GridViewColumn.Header>
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Pid}"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Width="86">
+                        <GridViewColumn.Header>
+                            <TextBlock Text="父 PID" Tag="ParentPid" />
+                        </GridViewColumn.Header>
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding ParentPid}"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,10,0"
+                                           Foreground="{StaticResource TextMuted}"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Width="82">
+                        <GridViewColumn.Header>
+                            <TextBlock Text="CPU %" Tag="CpuPercent" />
+                        </GridViewColumn.Header>
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding CpuDisplay}"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Width="104">
+                        <GridViewColumn.Header>
+                            <TextBlock Text="内存（专用）" Tag="MemoryMb" />
+                        </GridViewColumn.Header>
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding MemoryDisplay}"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,10,0"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Width="78">
+                        <GridViewColumn.Header>
+                            <TextBlock Text="句柄" Tag="HandleCount" />
+                        </GridViewColumn.Header>
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding HandleCount}"
+                                           HorizontalAlignment="Right"
+                                           Margin="0,0,10,0"
+                                           Foreground="{StaticResource TextMuted}"
+                                           VerticalAlignment="Center" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                    <GridViewColumn Width="420">
+                        <GridViewColumn.Header>
+                            <TextBlock Text="命令行" Tag="CommandLine" />
+                        </GridViewColumn.Header>
+                        <GridViewColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding CommandLine}"
+                                           Foreground="{StaticResource TextMuted}"
+                                           TextTrimming="CharacterEllipsis"
+                                           VerticalAlignment="Center"
+                                           ToolTip="{Binding CommandLine}" />
+                            </DataTemplate>
+                        </GridViewColumn.CellTemplate>
+                    </GridViewColumn>
+
+                </GridView>
+            </ListView.View>
+        </ListView>
+
+    </DockPanel>
+
+        <!-- 非阻塞 Toast：结束进程结果 / 提权引导 -->
+        <Border x:Name="Toast"
+                AutomationProperties.AutomationId="Toast"
+                Visibility="Collapsed"
+                HorizontalAlignment="Right"
+                VerticalAlignment="Bottom"
+                Margin="0,0,24,46"
+                MaxWidth="560"
+                Background="{StaticResource SurfaceAlt}"
+                BorderBrush="{StaticResource Accent}"
+                BorderThickness="1"
+                CornerRadius="6"
+                Padding="14,10"
+                Panel.ZIndex="100">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="ToastText"
+                           AutomationProperties.AutomationId="ToastText"
+                           Grid.Row="0"
+                           Grid.Column="0"
+                           Foreground="{StaticResource TextPrimary}"
+                           TextWrapping="Wrap"
+                           MaxWidth="430"
+                           Margin="0,0,12,0" />
+
+                <Button x:Name="ToastCloseButton"
+                        Grid.Row="0"
+                        Grid.Column="1"
+                        Style="{StaticResource GlyphButton}"
+                        Content="×"
+                        FontSize="14"
+                        Width="20"
+                        Height="20"
+                        VerticalAlignment="Top"
+                        Click="OnToastCloseClick"
+                        ToolTip="关闭" />
+
+                <StackPanel x:Name="ToastActions"
+                            Grid.Row="1"
+                            Grid.ColumnSpan="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,8,0,0"
+                            Visibility="Collapsed">
+                    <Button x:Name="ToastDetailsButton"
+                            Style="{StaticResource ToolbarButton}"
+                            Content="详情"
+                            Padding="10,3"
+                            Margin="0,0,8,0"
+                            Click="OnToastDetailsClick"
+                            Visibility="Collapsed" />
+                    <Button x:Name="ToastElevateButton"
+                            Style="{StaticResource ToolbarButton}"
+                            Content="提权重启"
+                            Padding="10,3"
+                            Click="OnToastElevateClick"
+                            Visibility="Collapsed" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+    </Grid>
+</Window>

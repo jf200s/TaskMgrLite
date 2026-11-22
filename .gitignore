@@ -1,0 +1,23 @@
+# ---- 构建产物：不进仓库 ----
+bin/
+obj/
+out/
+
+# 自包含发布输出（137MB 起，靠 scripts/build.ps1 重新生成）
+publish/
+dist/
+
+# 运行时日志与测量产物
+logs/
+*.log
+artifacts/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# 临时文件
+*.tmp
+*.bak

@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- 本机是 .NET 11 SDK。若要在只有 .NET 10 运行时的机器上构建，改回 net10.0-windows 即可，
+         代码不含 11 专属 API -->
+    <TargetFramework>net11.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+
+    <AssemblyName>TaskMgrLite</AssemblyName>
+    <RootNamespace>TaskMgrLite</RootNamespace>
+
+    <!-- 自包含 R2R 发布参数放在 scripts/build.ps1 里，避免日常 build 变慢 -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+</Project>
