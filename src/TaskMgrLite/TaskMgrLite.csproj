@@ -14,9 +14,17 @@
     <AssemblyName>TaskMgrLite</AssemblyName>
     <RootNamespace>TaskMgrLite</RootNamespace>
 
+    <!-- exe 与任务栏图标；app.ico 含 16~256 九档，窗口图标另以 Resource 引用 -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+
     <!-- 自包含 R2R 发布参数放在 scripts/build.ps1 里，避免日常 build 变慢 -->
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <DebugType>embedded</DebugType>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Window.Icon 通过 pack URI "/Assets/app.ico" 引用，必须作为 Resource 编译进程序集 -->
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
 
 </Project>
