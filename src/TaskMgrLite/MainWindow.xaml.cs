@@ -15,8 +15,6 @@ namespace TaskMgrLite;
 
 public partial class MainWindow : Window
 {
-    private string? _sortKey;
-    private ListSortDirection _sortDirection = ListSortDirection.Ascending;
     private bool _commandLineScanQueued;
 
     private readonly DispatcherTimer _toastTimer;
@@ -118,12 +116,9 @@ public partial class MainWindow : Window
         if (header?.Content is not TextBlock { Tag: string key }) return;
         if (DataContext is not MainViewModel vm) return;
 
-        _sortDirection = _sortKey == key && _sortDirection == ListSortDirection.Ascending
-            ? ListSortDirection.Descending
-            : ListSortDirection.Ascending;
-
-        _sortKey = key;
-        vm.ApplySort(key, _sortDirection);
+        // 方向判定问 VM：排序状态是 VM 的唯一事实，窗口不再自己记一份，
+        // 否则切树形挂起排序后这里会算错方向。
+        vm.ToggleSort(key);
     }
 
     private void OnExpanderClick(object sender, RoutedEventArgs e)

@@ -67,6 +67,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
     private ProcessViewMode _viewMode = ProcessViewMode.Tree;
 
+    // 列排序状态。属于视图层但不属于某个模式：切到树形时临时挂起（树序必须保持父子相邻），
+    // 切回平铺时原样恢复。挂在 VM 上是为了让提权重启和模式切换共用同一份事实。
+    private string? _sortKey;
+    private ListSortDirection _sortDirection = ListSortDirection.Ascending;
+
     private int _uiPending;
     private bool _firstApplied;
     private long _lastAllocatedBytes = -1;
@@ -371,7 +376,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         StatusText = IsTreeMode
             ? $"树形 · 可见 {Rows.Count} / 共 {_rowsByKey.Count} · 折叠 {_collapsed.Count}"
-            : $"平铺 · {_rowsByKey.Count} 条 · 1Hz 采集线程";
+              + DescribePendingSort()
+            : $"平铺 · {_rowsByKey.Count} 条" + DescribeStoredSort();
 
         OnPropertyChanged(nameof(CountText));
 
@@ -622,7 +628,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (migrate)
             SelectedRow = row;
 
-        StatusText = $"树形 · 可见 {Rows.Count} / 共 {_rowsByKey.Count} · 折叠 {_collapsed.Count}";
+        StatusText = $"树形 · 可见 {Rows.Count} / 共 {_rowsByKey.Count} · 折叠 {_collapsed.Count}"
+                     + DescribePendingSort();
         return true;
     }
 
@@ -632,8 +639,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         _viewMode = ProcessViewMode.Tree;
 
-        // 树序和列排序互斥：切回树形必须清掉排序
-        if (View is ListCollectionView view)
+        // 树序和列排序互斥：树形下父子必须相邻，所以只挂起排序、不清除。
+        // 排序条件保留在 _sortKey/_sortDirection，切回平铺时恢复。
+        if (View is ListCollectionView view && view.SortDescriptions.Count > 0)
         {
             using (view.DeferRefresh())
                 view.SortDescriptions.Clear();
@@ -645,7 +653,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         OnPropertyChanged(nameof(ModeLabel));
         OnPropertyChanged(nameof(CountText));
 
-        StatusText = $"树形 · 可见 {Rows.Count} / 共 {_rowsByKey.Count} · 折叠 {_collapsed.Count}";
+        StatusText = $"树形 · 可见 {Rows.Count} / 共 {_rowsByKey.Count} · 折叠 {_collapsed.Count}"
+                     + DescribePendingSort();
     }
 
     public void SetFlatMode()
@@ -655,25 +664,85 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _viewMode = ProcessViewMode.Flat;
         RebuildFromCurrentNodes();
 
+        // 回到平铺时恢复切换前的排序，避免“切一趟树形排序就丢了”。
+        ApplyStoredSort();
+
         OnPropertyChanged(nameof(IsTreeMode));
         OnPropertyChanged(nameof(ModeLabel));
         OnPropertyChanged(nameof(CountText));
 
-        StatusText = $"平铺 · {_rowsByKey.Count} 条";
+        StatusText = $"平铺 · {_rowsByKey.Count} 条" + DescribeStoredSort();
     }
 
     public void ApplySort(string propertyName, ListSortDirection direction)
     {
-        SetFlatMode();   // 排序即平铺
+        // 先落排序字段，再切模式：SetFlatMode 内部的 ApplyStoredSort 会直接
+        // 用上新排序，避免"先按旧序排一遍、再按新序排一遍"的重复刷新。
+        _sortKey = propertyName;
+        _sortDirection = direction;
 
+        if (_viewMode == ProcessViewMode.Flat)
+        {
+            ApplyStoredSort();
+        }
+        else
+        {
+            SetFlatMode();   // 排序即平铺
+        }
+
+        StatusText = $"平铺 · {_rowsByKey.Count} 条" + DescribeStoredSort();
+    }
+
+    /// <summary>
+    /// 列头点击：同一列在升序/降序之间翻转，换一列则从升序开始。
+    /// 树形下点列头会先切平铺（排序即平铺），再应用排序。
+    /// </summary>
+    public void ToggleSort(string propertyName)
+    {
+        ListSortDirection direction =
+            _sortKey == propertyName && _sortDirection == ListSortDirection.Ascending
+                ? ListSortDirection.Descending
+                : ListSortDirection.Ascending;
+
+        ApplySort(propertyName, direction);
+    }
+
+    /// <summary>把当前挂起的排序条件应用到视图。没有排序时是空操作。</summary>
+    private void ApplyStoredSort()
+    {
+        if (_sortKey is null) return;
         if (View is not ListCollectionView view) return;
 
         using (view.DeferRefresh())
         {
             view.SortDescriptions.Clear();
-            view.SortDescriptions.Add(new SortDescription(propertyName, direction));
+            view.SortDescriptions.Add(new SortDescription(_sortKey, _sortDirection));
         }
     }
+
+    /// <summary>树形下排序被挂起时，在状态栏说清楚它还在，只是没生效。</summary>
+    private string DescribePendingSort() =>
+        _viewMode == ProcessViewMode.Tree && _sortKey is not null
+            ? $"（按 {SortColumnName(_sortKey)} 的排序已保留，切回平铺恢复）"
+            : string.Empty;
+
+    /// <summary>平铺下显示当前生效的排序，让用户知道排序没有丢。</summary>
+    private string DescribeStoredSort() =>
+        _sortKey is null
+            ? string.Empty
+            : $" · 按 {SortColumnName(_sortKey)} {(_sortDirection == ListSortDirection.Ascending ? "升序" : "降序")}";
+
+    private static string SortColumnName(string key) => key switch
+    {
+        "Name" => "名称",
+        "Pid" => "PID",
+        "ParentPid" => "父 PID",
+        "CpuPercent" => "CPU %",
+        "MemoryMb" => "内存（专用）",
+        "HandleCount" => "句柄",
+        "CommandLine" => "命令行",
+        _ => key
+    };
 
     private void EnsureNodeCapacity(int count)
     {
