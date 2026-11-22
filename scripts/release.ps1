@@ -52,9 +52,20 @@ if (Test-Path $logs) { Remove-Item $logs -Recurse -Force }
 
 Write-Host "`n== add docs ==" -ForegroundColor Cyan
 Copy-Item $readme (Join-Path $stage 'README.md') -Force
+Copy-Item (Join-Path $root 'LICENSE') (Join-Path $stage 'LICENSE') -Force
 $docs = Join-Path $root 'docs'
 if (Test-Path $docs) {
     Copy-Item $docs (Join-Path $stage 'docs') -Recurse -Force
+}
+
+# 自包含包内含 .NET 运行时，分发时须附带它的许可与第三方声明。
+Write-Host "`n== add dotnet notices ==" -ForegroundColor Cyan
+$dotnetRoot = Split-Path -Parent (Get-Command dotnet).Source
+foreach ($name in @('LICENSE.txt', 'ThirdPartyNotices.txt')) {
+    $src = Join-Path $dotnetRoot $name
+    if (-not (Test-Path $src)) { throw "missing runtime notice: $src" }
+    Copy-Item $src (Join-Path $stage $name) -Force
+    Write-Host "  $name"
 }
 
 Write-Host "`n== zip ==" -ForegroundColor Cyan

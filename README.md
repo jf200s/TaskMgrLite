@@ -136,3 +136,13 @@ NtQuerySystemInformation(class 5) → 零分配 unsafe 解析
 - 受保护进程（PPL/系统进程）即使提权也可能无法读取路径或结束。
 - 800ms 启动目标未达成，当前接受 807.5ms；不为了 7.5ms 引入复杂懒加载。
 - 树杀只覆盖点击时快照；点击后新出生的后代需要下一轮手动处理。
+
+## 许可证
+
+Copyright 2026 jf200s
+
+本项目采用 [Apache License 2.0](LICENSE) 授权，完整条款见仓库根目录的 `LICENSE`。
+
+发布包内含 .NET 运行时（自包含部署），其许可条款与第三方声明随包附带，见解压目录下的
+`LICENSE.txt`（Microsoft .NET Library 许可）和 `ThirdPartyNotices.txt`。
+
