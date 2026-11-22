@@ -23,7 +23,7 @@ public sealed class CommandLineService : IDisposable
     private readonly Func<ProcKey, bool> _isAlive;
     private readonly Action<ProcKey, CommandLineResult> _onResolved;
 
-    private readonly LruCache<ProcKey, CommandLineResult> _cache = new(CacheCapacity);
+    private readonly CommandLineCache _cache = new(CacheCapacity);
     private readonly HashSet<ProcKey> _pending = new();
     private readonly BlockingCollection<ProcKey> _queue =
         new(new ConcurrentQueue<ProcKey>(), QueueCapacity);
@@ -59,7 +59,7 @@ public sealed class CommandLineService : IDisposable
     {
         if (_disposed || !_isAlive(key)) return;
 
-        if (_cache.TryGet(key, out CommandLineResult cached))
+        if (_cache.TryGet(key, Environment.TickCount64, out CommandLineResult cached))
         {
             _onResolved(key, cached);
             return;
@@ -115,7 +115,7 @@ public sealed class CommandLineService : IDisposable
         // 进程可能在读取期间退出；不要给已删除的 key 写缓存或回调
         if (_disposed || !_isAlive(key)) return;
 
-        _cache.Set(key, result);
+        _cache.Set(key, result, Environment.TickCount64);
         _onResolved(key, result);
     }
 

@@ -49,6 +49,12 @@ public static class SelfTest
         Check("ui state rejects path outside root", UiStateRejectsPathOutsideRoot);
         Check("elevation args preserve flags and path", ElevationArguments);
         Check("restore forces flat with search", UiStateNormalizeForcesFlat);
+        Check("ok cache never expires", OkCacheNeverExpires);
+        Check("negative cache expires at 30s", NegativeCacheExpiresAt30s);
+        Check("error cache expires at 30s", ErrorCacheExpiresAt30s);
+        Check("terminal cache statuses do not expire", TerminalCacheStatusesDoNotExpire);
+        Check("cache timestamp refreshes", CacheTimestampRefreshes);
+        Check("command line cache keeps lru bound", CommandLineCacheKeepsLruBound);
         Check("collapsed set bounded under churn", CollapseBoundedUnderChurn);
         Check("visible list sync inserts and moves", VisibleListSyncWorks);
         Check("visible list sync random churn", VisibleListSyncRandomChurn);
@@ -530,6 +536,93 @@ public static class SelfTest
             DateTime.UtcNow).Normalize();
 
         Equal((int)ProcessViewMode.Tree, (int)empty.ViewMode, "empty keeps tree");
+    }
+
+    private static void OkCacheNeverExpires()
+    {
+        var cache = new CommandLineCache();
+        ProcKey key = new(1, 1);
+
+        cache.Set(key, new CommandLineResult("cmd.exe --flag", CommandLineStatus.Ok), 0);
+
+        True(cache.TryGet(key, 600_000, out CommandLineResult result), "ok hit after 10 min");
+        EqualText("cmd.exe --flag", result.Text!, "ok text");
+    }
+
+    private static void NegativeCacheExpiresAt30s()
+    {
+        var cache = new CommandLineCache();
+        ProcKey key = new(1, 1);
+
+        cache.Set(key, new CommandLineResult(null, CommandLineStatus.AccessDenied), 0);
+
+        True(cache.TryGet(key, 29_999, out _), "denied before ttl");
+        True(!cache.TryGet(key, 30_000, out _), "denied at ttl");
+        Equal(0, cache.Count, "expired entry removed");
+    }
+
+    private static void ErrorCacheExpiresAt30s()
+    {
+        var cache = new CommandLineCache();
+        ProcKey key = new(1, 1);
+
+        cache.Set(key, new CommandLineResult(null, CommandLineStatus.Error), 0);
+
+        True(cache.TryGet(key, 29_999, out _), "error before ttl");
+        True(!cache.TryGet(key, 30_000, out _), "error at ttl");
+        Equal(0, cache.Count, "error entry removed");
+    }
+
+    private static void TerminalCacheStatusesDoNotExpire()
+    {
+        var cache = new CommandLineCache();
+        CommandLineStatus[] statuses =
+        {
+            CommandLineStatus.Exited,
+            CommandLineStatus.ProcessReused,
+            CommandLineStatus.Unsupported
+        };
+
+        for (int i = 0; i < statuses.Length; i++)
+        {
+            ProcKey key = new((uint)(i + 1), 1);
+            cache.Set(key, new CommandLineResult(null, statuses[i]), 0);
+            True(cache.TryGet(key, 30_000, out _), statuses[i].ToString());
+        }
+    }
+
+    private static void CacheTimestampRefreshes()
+    {
+        var cache = new CommandLineCache();
+        ProcKey key = new(1, 1);
+        var denied = new CommandLineResult(null, CommandLineStatus.AccessDenied);
+
+        cache.Set(key, denied, 0);
+        cache.Set(key, denied, 20_000);
+
+        True(cache.TryGet(key, 49_999, out _), "refreshed entry before ttl");
+        True(!cache.TryGet(key, 50_000, out _), "refreshed entry at ttl");
+    }
+
+    private static void CommandLineCacheKeepsLruBound()
+    {
+        var cache = new CommandLineCache(capacity: 2);
+        var ok = new CommandLineResult("cmd", CommandLineStatus.Ok);
+
+        ProcKey k1 = new(1, 1);
+        ProcKey k2 = new(2, 1);
+        ProcKey k3 = new(3, 1);
+
+        cache.Set(k1, ok, 0);
+        cache.Set(k2, ok, 0);
+
+        // 命中 k1，把它移到表头；之后 k2 是最久未使用
+        True(cache.TryGet(k1, 0, out _), "k1 hit");
+        cache.Set(k3, ok, 0);
+
+        True(cache.TryGet(k1, 0, out _), "k1 kept");
+        True(!cache.TryGet(k2, 0, out _), "k2 evicted");
+        Equal(2, cache.Count, "capacity kept");
     }
 
     private static void CollapseBoundedUnderChurn()
