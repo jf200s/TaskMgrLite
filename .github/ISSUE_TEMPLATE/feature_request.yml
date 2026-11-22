@@ -1,0 +1,35 @@
+name: Feature request
+description: 提出一个功能或体验改进
+title: "[Feature] "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: 想解决的问题
+      description: 先描述痛点和当前操作路径，再描述功能。
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 建议方案
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: 备选方案 / 取舍
+  - type: dropdown
+    id: area
+    attributes:
+      label: 影响范围
+      options:
+        - 交互 / 体验
+        - 性能 / 分配
+        - 底层解析
+        - 发布 / 工程化
+        - 其他
+    validations:
+      required: true

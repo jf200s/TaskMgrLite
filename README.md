@@ -1,5 +1,7 @@
 # TaskMgrLite
 
+[![CI](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml/badge.svg)](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml)
+
 一个为“更快到达”而做的 Windows 任务管理器替代品。不是信息更多，而是启动更快、操作路径更短、底层解析更干净。
 
 ![TaskMgrLite](docs/screenshot.png)
