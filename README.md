@@ -126,7 +126,7 @@ NtQuerySystemInformation(class 5) → 零分配 unsafe 解析
 .\scripts\check.ps1 -Ui -StartupRuns 3
 
 # 干净发布包：dist\TaskMgrLite-win-x64\ + zip + SHA256
-.\scripts\release.ps1 -Version 0.2.0 -Ui
+.\scripts\release.ps1 -Version 0.1.01 -Ui
 ```
 
 `release.ps1` 会清空 staging、重新 publish、跑 selftest 与 diag、可选跑 UI 回归，删除 PDB/XML/logs，复制 README、docs 和 .NET 声明，再生成 zip 与 `.sha256`。
