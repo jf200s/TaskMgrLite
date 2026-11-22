@@ -564,6 +564,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         for (int i = 0; i < _desired.Count; i++)
             _desiredKeys.Add(_desired[i].Key);
 
+        // 批量 ReplaceAll 会触发 Reset，ListView 可能清掉选中项。
+        // 如果原来的选中行仍在新可见序列里，重建结束后把它补回来。
+        ProcessRowViewModel? keepSelected = _selectedRow;
+        bool restoreSelection = keepSelected is not null &&
+                                _desiredKeys.Contains(keepSelected.KeyStruct);
+
         if (Rows.Count == 0 && _desired.Count > 0)
         {
             // 首屏一次 Reset，避免 500 次逐条通知
@@ -596,6 +602,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             row.HasChildren = node.HasChildren;
             row.IsExpanded = !_collapsed.Contains(node.Key);
         }
+
+        if (restoreSelection && !ReferenceEquals(_selectedRow, keepSelected))
+            SelectedRow = keepSelected;
     }
 
     public void ToggleExpanded(ProcessRowViewModel row)

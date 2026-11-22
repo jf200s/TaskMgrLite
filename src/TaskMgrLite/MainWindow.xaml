@@ -125,7 +125,8 @@
 
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <TextBlock Text="PID " Foreground="{StaticResource TextMuted}" />
-                        <TextBlock Text="{Binding SelectedRow.Pid}" />
+                        <TextBlock Text="{Binding SelectedRow.Pid}"
+                                   AutomationProperties.AutomationId="DetailPid" />
                         <TextBlock Text="   父 PID " Foreground="{StaticResource TextMuted}" />
                         <TextBlock Text="{Binding SelectedRow.ParentPid}" />
                     </StackPanel>
