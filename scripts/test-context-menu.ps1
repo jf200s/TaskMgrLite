@@ -44,11 +44,19 @@ function Find-ById($window, [string]$id) {
 }
 
 function Wait-Window([int]$processId) {
-    for ($i = 0; $i -lt 100; $i++) {
+    for ($i = 0; $i -lt 120; $i++) {
         $cond = New-Object System.Windows.Automation.PropertyCondition(
             [System.Windows.Automation.AutomationElement]::ProcessIdProperty, $processId)
-        $window = $root.FindFirst([System.Windows.Automation.TreeScope]::Children, $cond)
-        if ($window) { return $window }
+        $windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+
+        for ($j = 0; $j -lt $windows.Count; $j++) {
+            $window = $windows[$j]
+            if ($window.Current.ClassName -ne 'Window') { continue }
+            if ($null -eq (Find-ById $window 'SearchBox')) { continue }
+            if ($null -eq (Find-ById $window 'ProcessList')) { continue }
+            return $window
+        }
+
         Start-Sleep -Milliseconds 100
     }
     throw "window not found for pid $processId"
@@ -69,9 +77,14 @@ function Get-FirstRow($window) {
     $cond = New-Object System.Windows.Automation.PropertyCondition(
         [System.Windows.Automation.AutomationElement]::ControlTypeProperty,
         [System.Windows.Automation.ControlType]::DataItem)
-    $items = $list.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
-    if ($items.Count -eq 0) { throw 'no data row' }
-    return $items[0]
+
+    for ($i = 0; $i -lt 50; $i++) {
+        $items = $list.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+        if ($items.Count -gt 0) { return $items[0] }
+        Start-Sleep -Milliseconds 100
+    }
+
+    throw 'no data row'
 }
 
 $menuCondition = New-Object System.Windows.Automation.PropertyCondition(
