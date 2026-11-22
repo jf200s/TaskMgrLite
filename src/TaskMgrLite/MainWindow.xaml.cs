@@ -35,6 +35,7 @@ public partial class MainWindow : Window
         // 命令行懒加载的触发源：首屏、滚动、选中、过滤后容器重建
         ProcessList.Loaded += OnListLoaded;
         ProcessList.SelectionChanged += OnListSelectionChanged;
+        ProcessList.PreviewKeyDown += OnListPreviewKeyDown;
         ProcessList.ItemContainerGenerator.StatusChanged += OnGeneratorStatusChanged;
         ProcessList.AddHandler(
             ScrollViewer.ScrollChangedEvent,
@@ -334,6 +335,21 @@ public partial class MainWindow : Window
     private void OnListLoaded(object sender, RoutedEventArgs e) => QueueCommandLineScan();
 
     private void OnListScrollChanged(object sender, ScrollChangedEventArgs e) => QueueCommandLineScan();
+
+    /// <summary>
+    /// 树形模式的极简键盘支持：Left 折叠、Right 展开。
+    /// 只有状态真的变化才 Handled，避免叶子和平铺模式吃掉默认按键。
+    /// </summary>
+    private void OnListPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key is not (Key.Left or Key.Right)) return;
+        if (DataContext is not MainViewModel vm || !vm.IsTreeMode) return;
+        if (ProcessList.SelectedItem is not ProcessRowViewModel row) return;
+
+        bool expand = e.Key == Key.Right;
+        if (vm.SetExpanded(row, expand))
+            e.Handled = true;
+    }
 
     private void OnListSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
