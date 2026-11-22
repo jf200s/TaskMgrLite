@@ -590,7 +590,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         ProcKey key = row.KeyStruct;
         if (!_rowsByKey.ContainsKey(key)) return;
 
-        SetExpanded(row, expand: !_collapsed.Contains(key));
+        // 当前已折叠 → 目标展开；当前已展开 → 目标折叠。
+        SetExpanded(row, expand: _collapsed.Contains(key));
     }
 
     /// <summary>
