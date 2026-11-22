@@ -116,6 +116,13 @@ public partial class MainWindow : Window
         if (header?.Content is not FrameworkElement { Tag: string key }) return;
         if (DataContext is not MainViewModel vm) return;
 
+        // 命令行是懒加载的，排序结果不完整；列头已变暗，这里再给出明确反馈。
+        if (!SortState.CanSort(key))
+        {
+            ShowToast("命令行不支持排序（懒加载）");
+            return;
+        }
+
         // 方向判定问 VM：排序状态是 VM 的唯一事实，窗口不再自己记一份，
         // 否则切树形挂起排序后这里会算错方向。
         vm.ToggleSort(key);

@@ -146,11 +146,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public string ModeText => _modeText;
 
     public bool IsTreeMode => _viewMode == ProcessViewMode.Tree;
-    public string ModeLabel => IsTreeMode ? "树形" : "平铺";
+    public string ModeLabel => IsTreeMode ? "切到平铺" : "切到树形";
 
-    // 列头排序箭头用；树形下箭头隐藏，但状态仍保留。
+    // 列头排序箭头用；树形下箭头保留但变暗，表示排序已挂起。
     public string? SortKey => _sort.Key;
     public ListSortDirection SortDirection => _sort.Direction;
+    public double SortArrowOpacity => IsTreeMode ? 0.3 : 1.0;
 
     public ProcessRowViewModel? SelectedRow
     {
@@ -673,6 +674,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(IsTreeMode));
         OnPropertyChanged(nameof(ModeLabel));
+        OnPropertyChanged(nameof(SortArrowOpacity));
         OnPropertyChanged(nameof(CountText));
 
         StatusText = $"树形 · 可见 {Rows.Count} / 共 {_rowsByKey.Count} · 折叠 {_collapsed.Count}"
@@ -691,6 +693,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         OnPropertyChanged(nameof(IsTreeMode));
         OnPropertyChanged(nameof(ModeLabel));
+        OnPropertyChanged(nameof(SortArrowOpacity));
         OnPropertyChanged(nameof(CountText));
 
         StatusText = $"平铺 · {_rowsByKey.Count} 条" + DescribeStoredSort();

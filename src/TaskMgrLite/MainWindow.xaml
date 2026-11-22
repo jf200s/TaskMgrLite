@@ -73,7 +73,7 @@
                     <Button Style="{StaticResource ToolbarButton}"
                             Content="{Binding ModeLabel}"
                             Click="OnModeClick"
-                            ToolTip="在树形与平铺之间切换（点列头排序会自动切平铺）" />
+                            ToolTip="切到树形 / 切到平铺；点列头排序会自动切平铺" />
                     <TextBlock Text="{Binding ModeText}"
                                Foreground="{StaticResource TextMuted}"
                                VerticalAlignment="Center"
@@ -178,17 +178,17 @@
                             <StackPanel Orientation="Horizontal" Tag="Name">
                                 <TextBlock Text="名称" />
                                 <TextBlock Margin="3,0,0,0"
-                                           MinWidth="8"
-                                           FontSize="9"
+                                           MinWidth="10"
+                                           FontSize="10"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextMuted}">
+                                           Foreground="{StaticResource Accent}"
+                                           Opacity="{Binding SortArrowOpacity}">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource SortArrow}">
                                             <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
                                             <Binding Path="SortKey" />
                                             <Binding Path="SortDirection" />
-                                            <Binding Path="IsTreeMode" />
                                         </MultiBinding>
                                     </TextBlock.Text>
                                 </TextBlock>
@@ -217,17 +217,17 @@
                             <StackPanel Orientation="Horizontal" Tag="Pid">
                                 <TextBlock Text="PID" />
                                 <TextBlock Margin="3,0,0,0"
-                                           MinWidth="8"
-                                           FontSize="9"
+                                           MinWidth="10"
+                                           FontSize="10"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextMuted}">
+                                           Foreground="{StaticResource Accent}"
+                                           Opacity="{Binding SortArrowOpacity}">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource SortArrow}">
                                             <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
                                             <Binding Path="SortKey" />
                                             <Binding Path="SortDirection" />
-                                            <Binding Path="IsTreeMode" />
                                         </MultiBinding>
                                     </TextBlock.Text>
                                 </TextBlock>
@@ -248,17 +248,17 @@
                             <StackPanel Orientation="Horizontal" Tag="ParentPid">
                                 <TextBlock Text="父 PID" />
                                 <TextBlock Margin="3,0,0,0"
-                                           MinWidth="8"
-                                           FontSize="9"
+                                           MinWidth="10"
+                                           FontSize="10"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextMuted}">
+                                           Foreground="{StaticResource Accent}"
+                                           Opacity="{Binding SortArrowOpacity}">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource SortArrow}">
                                             <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
                                             <Binding Path="SortKey" />
                                             <Binding Path="SortDirection" />
-                                            <Binding Path="IsTreeMode" />
                                         </MultiBinding>
                                     </TextBlock.Text>
                                 </TextBlock>
@@ -280,17 +280,17 @@
                             <StackPanel Orientation="Horizontal" Tag="CpuPercent">
                                 <TextBlock Text="CPU %" />
                                 <TextBlock Margin="3,0,0,0"
-                                           MinWidth="8"
-                                           FontSize="9"
+                                           MinWidth="10"
+                                           FontSize="10"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextMuted}">
+                                           Foreground="{StaticResource Accent}"
+                                           Opacity="{Binding SortArrowOpacity}">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource SortArrow}">
                                             <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
                                             <Binding Path="SortKey" />
                                             <Binding Path="SortDirection" />
-                                            <Binding Path="IsTreeMode" />
                                         </MultiBinding>
                                     </TextBlock.Text>
                                 </TextBlock>
@@ -311,17 +311,17 @@
                             <StackPanel Orientation="Horizontal" Tag="MemoryMb">
                                 <TextBlock Text="内存（专用）" />
                                 <TextBlock Margin="3,0,0,0"
-                                           MinWidth="8"
-                                           FontSize="9"
+                                           MinWidth="10"
+                                           FontSize="10"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextMuted}">
+                                           Foreground="{StaticResource Accent}"
+                                           Opacity="{Binding SortArrowOpacity}">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource SortArrow}">
                                             <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
                                             <Binding Path="SortKey" />
                                             <Binding Path="SortDirection" />
-                                            <Binding Path="IsTreeMode" />
                                         </MultiBinding>
                                     </TextBlock.Text>
                                 </TextBlock>
@@ -342,17 +342,17 @@
                             <StackPanel Orientation="Horizontal" Tag="HandleCount">
                                 <TextBlock Text="句柄" />
                                 <TextBlock Margin="3,0,0,0"
-                                           MinWidth="8"
-                                           FontSize="9"
+                                           MinWidth="10"
+                                           FontSize="10"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextMuted}">
+                                           Foreground="{StaticResource Accent}"
+                                           Opacity="{Binding SortArrowOpacity}">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource SortArrow}">
                                             <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
                                             <Binding Path="SortKey" />
                                             <Binding Path="SortDirection" />
-                                            <Binding Path="IsTreeMode" />
                                         </MultiBinding>
                                     </TextBlock.Text>
                                 </TextBlock>
@@ -371,20 +371,22 @@
 
                     <GridViewColumn Width="420">
                         <GridViewColumn.Header>
-                            <StackPanel Orientation="Horizontal" Tag="CommandLine">
+                            <StackPanel Orientation="Horizontal" Tag="CommandLine"
+                                        Opacity="0.55"
+                                        ToolTip="命令行是懒加载，不支持排序">
                                 <TextBlock Text="命令行" />
                                 <TextBlock Margin="3,0,0,0"
-                                           MinWidth="8"
-                                           FontSize="9"
+                                           MinWidth="10"
+                                           FontSize="10"
                                            TextAlignment="Center"
                                            VerticalAlignment="Center"
-                                           Foreground="{StaticResource TextMuted}">
+                                           Foreground="{StaticResource Accent}"
+                                           Opacity="{Binding SortArrowOpacity}">
                                     <TextBlock.Text>
                                         <MultiBinding Converter="{StaticResource SortArrow}">
                                             <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
                                             <Binding Path="SortKey" />
                                             <Binding Path="SortDirection" />
-                                            <Binding Path="IsTreeMode" />
                                         </MultiBinding>
                                     </TextBlock.Text>
                                 </TextBlock>
