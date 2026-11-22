@@ -77,13 +77,25 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private string _statusText = "就绪";
     private readonly string _modeText;
 
-    public MainViewModel(bool useRealData, bool stats, bool probeExit)
+    public MainViewModel(bool useRealData, bool stats, bool probeExit, UiState? restore = null)
     {
         UseRealData = useRealData;
         _statsEnabled = stats;
         _probeExit = probeExit;
         _modeText = useRealData ? "真实数据 · 1Hz 采集线程" : "假数据 · 400 行（--fake）";
         _dispatcher = Dispatcher.CurrentDispatcher;
+
+        // 提权重启恢复：直接初始化字段，不走 SearchText setter 的 150ms 防抖。
+        if (restore is UiState state)
+        {
+            UiState normalized = state.Normalize();
+            _searchText = normalized.SearchText;
+            _appliedSearchText = normalized.SearchText;
+            _viewMode = normalized.ViewMode;
+
+            foreach (ProcKey key in normalized.Collapsed)
+                _collapsed.Add(key);
+        }
 
         // 只分配一次，之后每帧复用
         _isDead = k => !_aliveKeys.Contains(k);
@@ -487,6 +499,14 @@ public sealed class MainViewModel : ObservableObject, IDisposable
 
         StatusText = $"{(tree ? "结束进程树" : "结束进程")} · 成功 {report.Succeeded} / 失败 {report.Failed}";
         return report;
+    }
+
+    /// <summary>提权重启前抓取最小 UI 状态；只包含搜索词、模式和折叠集合。</summary>
+    public UiState CaptureUiState()
+    {
+        var collapsed = new ProcKey[_collapsed.Count];
+        _collapsed.CopyTo(collapsed);
+        return new UiState(_searchText, _viewMode, collapsed, DateTime.UtcNow);
     }
 
     public void Dispose()

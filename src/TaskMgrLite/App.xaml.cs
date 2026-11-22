@@ -89,9 +89,19 @@ public partial class App : Application
         // 这条用来判断 R2R 镜像在这台机器上到底会不会被采用
         Log.WriteLine($"[boot] avx2={Avx2.IsSupported} avx512f={Avx512F.IsSupported} vector256={Vector256.IsHardwareAccelerated}");
 
+        UiState? restore = null;
+        string? restorePath = GetOptionValue(e.Args, "--restore-ui=");
+        if (restorePath is not null)
+        {
+            restore = UiStateStore.TryLoad(restorePath);
+            Log.WriteLine(restore is null
+                ? "[boot] restore-ui ignored"
+                : "[boot] restore-ui loaded");
+        }
+
         StartupProbe.Begin();
 
-        var vm = new MainViewModel(useRealData: real, stats: stats, probeExit: probeExit);
+        var vm = new MainViewModel(useRealData: real, stats: stats, probeExit: probeExit, restore: restore);
         StartupProbe.Mark("vm-created");
 
         var window = new MainWindow { DataContext = vm };
@@ -119,6 +129,24 @@ public partial class App : Application
 
     private static bool HasFlag(string[] args, string flag) =>
         args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>取 --key=value 形式的参数值；没有或为空时返回 null。</summary>
+    private static string? GetOptionValue(string[] args, string prefix)
+    {
+        foreach (string arg in args)
+        {
+            if (!arg.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            string value = arg[prefix.Length..].Trim();
+            if (value.Length >= 2 && value[0] == '"' && value[^1] == '"')
+                value = value[1..^1];
+
+            return value.Length == 0 ? null : value;
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// 数据源选择：默认真实数据（双击即用），只有显式 --fake 才进入假数据压测模式。

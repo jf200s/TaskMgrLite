@@ -1,4 +1,5 @@
 ﻿using System.Collections.Specialized;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using TaskMgrLite.ViewModels;
@@ -41,6 +42,13 @@ public static class SelfTest
         Check("selection stays outside collapsed subtree", SelectionStaysOutsideCollapsedSubtree);
         Check("collapse set supports explicit expand", CollapseSetExplicit);
         Check("leaf explicit expand is rejected", LeafExplicitExpandRejected);
+        Check("ui state round-trips", UiStateRoundTrip);
+        Check("ui state rejects stale", UiStateRejectsStale);
+        Check("ui state rejects bad version", UiStateRejectsBadVersion);
+        Check("ui state rejects malformed and oversized", UiStateRejectsMalformedAndOversized);
+        Check("ui state rejects path outside root", UiStateRejectsPathOutsideRoot);
+        Check("elevation args preserve flags and path", ElevationArguments);
+        Check("restore forces flat with search", UiStateNormalizeForcesFlat);
         Check("collapsed set bounded under churn", CollapseBoundedUnderChurn);
         Check("visible list sync inserts and moves", VisibleListSyncWorks);
         Check("visible list sync random churn", VisibleListSyncRandomChurn);
@@ -373,6 +381,155 @@ public static class SelfTest
         True(!CollapseState.Set(collapsed, leaf, expand: false, parents), "leaf collapse rejected");
         True(!CollapseState.Set(collapsed, leaf, expand: true, parents), "leaf expand rejected");
         Equal(0, collapsed.Count, "leaf leaves set empty");
+    }
+
+    private static void UiStateRoundTrip()
+    {
+        string root = NewTempRoot();
+        try
+        {
+            var state = new UiState(
+                "svchost",
+                ProcessViewMode.Tree,
+                new[] { new ProcKey(10, 100), new ProcKey(20, 200) },
+                DateTime.UtcNow);
+
+            string path = UiStateStore.Save(state, root);
+            True(File.Exists(path), "state file written");
+
+            UiState? loaded = UiStateStore.TryLoad(path, root);
+            True(loaded.HasValue, "state loaded");
+            if (!loaded.HasValue) return;
+
+            UiState restored = loaded.Value;
+            EqualText("svchost", restored.SearchText, "search restored");
+            Equal((int)ProcessViewMode.Flat, (int)restored.ViewMode, "search forces flat");
+            Equal(2, restored.Collapsed.Length, "collapsed count");
+            True(restored.Collapsed[0].Equals(new ProcKey(10, 100)), "first key");
+            True(!File.Exists(path), "state file deleted after load");
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    private static void UiStateRejectsStale()
+    {
+        string root = NewTempRoot();
+        try
+        {
+            var state = new UiState(
+                "x",
+                ProcessViewMode.Tree,
+                Array.Empty<ProcKey>(),
+                DateTime.UtcNow.AddMinutes(-10));
+
+            string path = UiStateStore.Save(state, root);
+            True(UiStateStore.TryLoad(path, root) is null, "stale rejected");
+            True(!File.Exists(path), "stale file removed");
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    private static void UiStateRejectsBadVersion()
+    {
+        string root = NewTempRoot();
+        try
+        {
+            string path = Path.Combine(root, "bad-version.json");
+            File.WriteAllText(
+                path,
+                "{\"version\":99,\"savedAtUtc\":\"" + DateTime.UtcNow.ToString("O") +
+                "\",\"searchText\":\"x\",\"viewMode\":\"Tree\",\"collapsed\":[]}");
+
+            True(UiStateStore.TryLoad(path, root) is null, "bad version rejected");
+            True(!File.Exists(path), "bad version file removed");
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    private static void UiStateRejectsMalformedAndOversized()
+    {
+        string root = NewTempRoot();
+        try
+        {
+            string malformed = Path.Combine(root, "malformed.json");
+            File.WriteAllText(malformed, "{ not json");
+            True(UiStateStore.TryLoad(malformed, root) is null, "malformed rejected");
+            True(!File.Exists(malformed), "malformed file removed");
+
+            string oversized = Path.Combine(root, "oversized.json");
+            File.WriteAllText(oversized, new string('x', UiStateStore.MaxBytes + 1));
+            True(UiStateStore.TryLoad(oversized, root) is null, "oversized rejected");
+            True(!File.Exists(oversized), "oversized file removed");
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    private static void UiStateRejectsPathOutsideRoot()
+    {
+        string rootA = NewTempRoot();
+        string rootB = NewTempRoot();
+        try
+        {
+            var state = new UiState(
+                "x",
+                ProcessViewMode.Tree,
+                Array.Empty<ProcKey>(),
+                DateTime.UtcNow);
+
+            string path = UiStateStore.Save(state, rootA);
+            True(UiStateStore.TryLoad(path, rootB) is null, "outside path rejected");
+            True(File.Exists(path), "outside path not deleted");
+        }
+        finally
+        {
+            DeleteTempRoot(rootA);
+            DeleteTempRoot(rootB);
+        }
+    }
+
+    private static void ElevationArguments()
+    {
+        string arguments = ElevationHelper.BuildArguments(
+            new[] { @"C:\app\TaskMgrLite.exe", "--real", @"--restore-ui=C:\old\state.json" },
+            @"C:\Temp\new state.json");
+
+        True(arguments.Contains("--real", StringComparison.Ordinal), "flag kept");
+        True(!arguments.Contains("old", StringComparison.Ordinal), "old restore removed");
+        True(arguments.Contains(
+                "\"--restore-ui=C:\\Temp\\new state.json\"",
+                StringComparison.Ordinal),
+            "new restore quoted");
+    }
+
+    private static void UiStateNormalizeForcesFlat()
+    {
+        UiState searched = new UiState(
+            "svchost",
+            ProcessViewMode.Tree,
+            Array.Empty<ProcKey>(),
+            DateTime.UtcNow).Normalize();
+
+        Equal((int)ProcessViewMode.Flat, (int)searched.ViewMode, "search forces flat");
+
+        UiState empty = new UiState(
+            "",
+            ProcessViewMode.Tree,
+            Array.Empty<ProcKey>(),
+            DateTime.UtcNow).Normalize();
+
+        Equal((int)ProcessViewMode.Tree, (int)empty.ViewMode, "empty keeps tree");
     }
 
     private static void CollapseBoundedUnderChurn()
@@ -1167,6 +1324,28 @@ public static class SelfTest
         for (int i = 0; i < rows.Length; i++)
             flat.Add(new FlatNode(new ProcKey(rows[i].Pid, 1), rows[i].Depth, true));
         return flat;
+    }
+
+    private static string NewTempRoot()
+    {
+        string root = Path.Combine(
+            Path.GetTempPath(),
+            "TaskMgrLite-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        return root;
+    }
+
+    private static void DeleteTempRoot(string root)
+    {
+        try
+        {
+            if (Directory.Exists(root))
+                Directory.Delete(root, recursive: true);
+        }
+        catch
+        {
+            // 临时目录清理失败不影响测试结论
+        }
     }
 
     private static List<FlatNode> Flatten(

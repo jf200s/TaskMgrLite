@@ -310,7 +310,8 @@ public partial class MainWindow : Window
     {
         HideToast();
 
-        if (!ElevationHelper.TryRestartElevated())
+        UiState? state = (DataContext as MainViewModel)?.CaptureUiState();
+        if (!ElevationHelper.TryRestartElevated(state))
             ShowToast("提权启动被取消或失败。");
     }
 
