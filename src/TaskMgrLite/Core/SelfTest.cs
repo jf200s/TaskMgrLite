@@ -1067,6 +1067,14 @@ public static class SelfTest
         True(!MainViewModel.ShouldLoadNative(useRealData: false), "fake mode must not hit native");
         True(MainViewModel.ShouldLoadNative(useRealData: true), "real mode may hit native");
 
+        // 默认（无参数）必须是真实数据；只有显式 --fake 才进入假数据模式。
+        True(App.ResolveUseRealData(Array.Empty<string>()), "no args means real data");
+        True(App.ResolveUseRealData(new[] { "--stats" }), "--stats alone stays real");
+        True(App.ResolveUseRealData(new[] { "--real" }), "--real stays real");
+        True(App.ResolveUseRealData(new[] { "--real", "--fake" }), "--real wins over --fake");
+        True(!App.ResolveUseRealData(new[] { "--fake" }), "--fake selects fake mode");
+        True(!App.ResolveUseRealData(new[] { "--FAKE" }), "flag match is case-insensitive");
+
         var row = new ProcessRowViewModel(1000, 0, "fake.exe", 0, 1, DateTime.Now)
         {
             CommandLine = "\"C:\\Fake\\fake.exe\"",

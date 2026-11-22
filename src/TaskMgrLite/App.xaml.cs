@@ -36,7 +36,7 @@ public partial class App : Application
         base.OnStartup(e);
 
         bool stats = HasFlag(e.Args, "--stats");
-        bool real = HasFlag(e.Args, "--real");
+        bool real = ResolveUseRealData(e.Args);
         bool probeExit = HasFlag(e.Args, "--probe-exit");
         bool selftest = HasFlag(e.Args, "--selftest");
         bool diagRound3 = HasFlag(e.Args, "--diag-round3");
@@ -119,4 +119,12 @@ public partial class App : Application
 
     private static bool HasFlag(string[] args, string flag) =>
         args.Any(a => string.Equals(a, flag, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// 数据源选择：默认真实数据（双击即用），只有显式 --fake 才进入假数据压测模式。
+    /// --real 仍然有效，作为显式声明；同时给出 --real 和 --fake 时以 --real 为准，
+    /// 免得旧快捷方式因为多带一个 --fake 就悄悄变成假数据。
+    /// </summary>
+    internal static bool ResolveUseRealData(string[] args) =>
+        HasFlag(args, "--real") || !HasFlag(args, "--fake");
 }

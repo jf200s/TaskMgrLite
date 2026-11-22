@@ -30,23 +30,26 @@
 从 Release 包解压后直接运行：
 
 ```powershell
-TaskMgrLite.exe --real
+TaskMgrLite.exe
 ```
 
-**注意：当前构建不带参数时会进入假数据压测模式（400 行）。日常使用必须带 `--real`。**
+双击 exe 即可，默认使用真实进程数据。
 
-建议创建一个快捷方式，目标填：
+建议创建一个快捷方式指向它（不需要任何参数）：
 
 ```text
-D:\path\to\TaskMgrLite.exe --real
+D:\path\to\TaskMgrLite.exe
 ```
+
+假数据压测模式（400 行，用于 UI 压测）需要显式加 `--fake`。
 
 ## 命令行参数
 
 | 参数 | 作用 |
 |---|---|
-| `--real` | 使用真实进程数据；不带则使用假数据压测模式 |
-| `--stats` | 每 2 秒输出专用工作集/工作集/私有提交/GC/句柄/分配速率，通常与 `--real` 连用 |
+| `--real` | 使用真实进程数据（默认行为，保留以兼容旧快捷方式和脚本） |
+| `--fake` | 假数据压测模式（400 行），不与 `--real` 同时使用时生效 |
+| `--stats` | 每 2 秒输出专用工作集/工作集/私有提交/GC/句柄/分配速率 |
 | `--selftest` | 不创建窗口，运行纯逻辑自检并返回退出码 |
 | `--diag-round3` | 真实内核路径诊断：读命令行、PID 复用保护、单杀/受控进程树杀 |
 | `--diag-round4` | 真实路径/用户名读取、Explorer 参数校验、手动刷新唤醒 |
@@ -55,7 +58,8 @@ D:\path\to\TaskMgrLite.exe --real
 示例：
 
 ```powershell
-.\TaskMgrLite.exe --stats --real
+.\TaskMgrLite.exe --stats
+.\TaskMgrLite.exe --fake
 .\TaskMgrLite.exe --selftest
 .\TaskMgrLite.exe --diag-round3
 .\TaskMgrLite.exe --diag-round4

@@ -82,7 +82,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         UseRealData = useRealData;
         _statsEnabled = stats;
         _probeExit = probeExit;
-        _modeText = useRealData ? "真实数据 · 1Hz 采集线程" : "假数据 · 400 行";
+        _modeText = useRealData ? "真实数据 · 1Hz 采集线程" : "假数据 · 400 行（--fake）";
         _dispatcher = Dispatcher.CurrentDispatcher;
 
         // 只分配一次，之后每帧复用
@@ -694,7 +694,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         RebuildFromCurrentNodes();
         OnPropertyChanged(nameof(CountText));
 
-        StatusText = $"假数据 400 行 · 树形 · 每秒随机改写 120 行属性";
+        StatusText = $"假数据 400 行 · 树形 · 每秒随机改写 120 行属性（--fake）";
     }
 
     private void MutateFakeRows()

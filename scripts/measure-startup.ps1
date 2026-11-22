@@ -22,7 +22,7 @@ $csvPath = Join-Path $outDir 'startup-results.csv'
 "run,ms" | Set-Content -Path $csvPath -Encoding ASCII
 
 $runArgs = @('--probe-exit')
-if (-not $Fake) { $runArgs += '--real' }
+if ($Fake) { $runArgs += '--fake' }
 
 for ($i = 1; $i -le $Iterations; $i++) {
     if (Test-Path $log) { Remove-Item $log -Force }
