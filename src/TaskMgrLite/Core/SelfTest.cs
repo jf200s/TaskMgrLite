@@ -58,6 +58,7 @@ public static class SelfTest
         Check("sort first numeric click is descending", SortFirstNumericDescending);
         Check("sort first text click is ascending", SortFirstTextAscending);
         Check("sort command line is disabled", SortCommandLineDisabled);
+        Check("port state clears on selection change", PortStateClearsOnSelectionChange);
         Check("ok cache never expires", OkCacheNeverExpires);
         Check("negative cache expires at 30s", NegativeCacheExpiresAt30s);
         Check("error cache expires at 30s", ErrorCacheExpiresAt30s);
@@ -651,6 +652,40 @@ public static class SelfTest
         True(SortState.NormalizeKey("CommandLine") is null, "command line dropped from restore");
         True(!SortState.Empty.Next("CommandLine").HasSort, "no sort state created");
         True(SortState.CanSort("Name"), "name can sort");
+    }
+
+    private static void PortStateClearsOnSelectionChange()
+    {
+        var state = new PortQueryState();
+        ProcKey a = new(1, 11);
+        ProcKey b = new(2, 22);
+
+        state.Reset(a);
+        int version = state.Begin();
+        True(state.IsBusy, "query is busy");
+
+        var result = new PortQueryResult(
+            new[]
+            {
+                new PortEntry("TCP4", "0.0.0.0:443", "—", "LISTEN")
+            },
+            PortQueryStatus.Ok,
+            "ok");
+
+        True(state.Apply(a, version, result), "current result applied");
+        Equal(1, state.Entries.Count, "one port");
+        True(state.CachedResult is not null, "cache populated");
+        EqualText("已加载 1 个端口", state.StatusText, "loaded status");
+
+        // 切换选中行：状态、列表、缓存全部清空，在途结果失效。
+        state.Reset(b);
+        Equal(0, state.Entries.Count, "entries cleared");
+        EqualText("未加载", state.StatusText, "status reset");
+        True(state.CachedResult is null, "cache cleared");
+        True(!state.IsBusy, "not busy");
+
+        True(!state.Apply(a, version, result), "stale result rejected");
+        Equal(0, state.Entries.Count, "stale result does not repopulate");
     }
 
     private static void SortStateModeGate()

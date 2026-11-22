@@ -2,6 +2,7 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Data;
+using System.Windows.Input;
 using System.Windows.Threading;
 using TaskMgrLite.Core;
 
@@ -55,6 +56,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     // ---- Round 3：命令行懒加载 + 进程结束 ----
     private readonly CommandLineService _commandLines;
     private readonly ProcessDetailsService _details;
+    private readonly PortQueryState _portState = new();
+    private CancellationTokenSource? _portCts;
     private readonly List<ProcKey> _killPlan = new(1024);
     private ProcessRowViewModel? _selectedRow;
     private bool _disposed;
@@ -121,6 +124,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             isAlive: k => _rowsByKey.ContainsKey(k),
             onResolved: OnDetailsResolved);
 
+        QueryPortsCommand = new RelayCommand(
+            () => _ = QueryPortsAsync(),
+            () => CanQueryPorts);
+
+        _portState.PropertyChanged += (_, _) =>
+            QueryPortsCommand.RaiseCanExecuteChanged();
+
         _fakeTick = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(1)
@@ -153,12 +163,21 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ListSortDirection SortDirection => _sort.Direction;
     public double SortArrowOpacity => IsTreeMode ? 0.3 : 1.0;
 
+    public PortQueryState PortState => _portState;
+    public RelayCommand QueryPortsCommand { get; }
+
+    public bool CanQueryPorts =>
+        !_disposed && UseRealData && _selectedRow is not null && !_portState.IsBusy;
+
     public ProcessRowViewModel? SelectedRow
     {
         get => _selectedRow;
         set
         {
             if (!Set(ref _selectedRow, value)) return;
+
+            // 切换选中行：取消查询、清空端口列表/状态/缓存，并使在途结果失效。
+            ResetPortState(value?.KeyStruct);
 
             OnPropertyChanged(nameof(HasSelection));
 
@@ -526,10 +545,61 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _sort.Direction);
     }
 
+    private void ResetPortState(ProcKey? key)
+    {
+        _portCts?.Cancel();
+        _portCts = null;
+
+        _portState.Reset(key);
+        QueryPortsCommand.RaiseCanExecuteChanged();
+    }
+
+    private async Task QueryPortsAsync()
+    {
+        if (!CanQueryPorts || _selectedRow is not ProcessRowViewModel row)
+            return;
+
+        ProcKey key = row.KeyStruct;
+
+        _portCts?.Cancel();
+        var cts = new CancellationTokenSource();
+        _portCts = cts;
+
+        int version = _portState.Begin();
+
+        try
+        {
+            PortQueryResult result = await Task.Run(
+                () => PortReader.Read(key.Pid), cts.Token);
+
+            // Apply 内部校验 Version + CurrentKey；切行后的旧结果在这里被丢弃。
+            _portState.Apply(key, version, result);
+        }
+        catch (OperationCanceledException)
+        {
+            // 用户切行或发起新一轮查询，状态已由 Reset/Begin 处理。
+        }
+        catch (Exception ex)
+        {
+            Log.WriteLine("[ports] " + ex);
+            _portState.Apply(key, version, PortQueryResult.Error(ex.Message));
+        }
+        finally
+        {
+            if (ReferenceEquals(_portCts, cts))
+                _portCts = null;
+            cts.Dispose();
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
+
+        _portCts?.Cancel();
+        _portCts = null;
+        _portState.Reset(null);
 
         _fakeTick.Stop();
         _statsTimer.Stop();
