@@ -22,8 +22,9 @@
 - `--selftest`：65 passed, 0 failed。
 - `--diag-round3` / `--diag-round4`：通过。
 - UIA：排序往返、提权恢复排序、排序箭头、折叠后切平铺选中、右键菜单 4/4。
+- 0.1.01 性能重测：启动 10 次中位 813ms；125 秒长跑专用工作集 max 69.1MB。
 
 ### 发布
 
 - 包：`TaskMgrLite-win-x64-0.1.01.zip`（59.9MB，260 files / 137.8MB unpacked）。
-- SHA256：`94394B0798AED673CEA43F52228F061D25280CA40196DC0801EC9EC8641A6658`。
+- SHA256：`7B9AAFB97BC9449BB7F839E48021D484A0CAD718F9D783648C59A5356DB15258`。

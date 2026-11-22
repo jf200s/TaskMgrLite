@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml/badge.svg)](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml)
 
+> 当前版本 **0.1.01** · [Release](https://github.com/jf200s/TaskMgrLite/releases/tag/v0.1.01) · [Changelog](CHANGELOG.md)
+
 一个为“更快到达”而做的 Windows 任务管理器替代品。不是信息更多，而是启动更快、操作路径更短、底层解析更干净。
 
 ![TaskMgrLite](docs/screenshot.png)
@@ -9,8 +11,8 @@
 ## 硬核特性
 
 - **原生解析，不走 WMI / PerformanceCounter**：一次 `NtQuerySystemInformation(SystemProcessInformation)` 拿全量进程，unsafe 偏移直读，零分配解析。
-- **极速启动**：自包含 ReadyToRun 发布，不压缩单文件；本机 10 次实测中位 **807.5ms**。
-- **极低分配**：1Hz 采集稳态 `[enum]` 分配多数为 0，125 秒长跑统计均值 **0.10MB/s**；新进程名称/状态增长时单次峰值约 71KB。
+- **极速启动**：自包含 ReadyToRun 发布，不压缩单文件；0.1.01 本机 10 次实测中位 **813ms**。
+- **极低分配**：1Hz 采集稳态 `[enum]` 分配多数为 0，0.1.01 的 125 秒长跑统计均值 **0.14MB/s**；新进程名称/状态增长时单次峰值约 62KB。
 - **300+ 进程可用**：树形结构在采集侧建 parent→children 索引，UI 侧 O(n) 展平为可见行，交给 ListView 虚拟化。
 - **不可变快照 + 原子交换**：采集线程只生产不可变数组，UI 无锁读取；UI 忙时覆盖式丢弃旧快照，不排队。
 - **命令行懒加载**：只在行进入可视区或选中时走 `OpenProcess + NtQueryInformationProcess(60)`，LRU 512；`AccessDenied` / `Error` 失败缓存 30 秒后自动重试。
@@ -32,7 +34,7 @@
 
 ## 快速开始
 
-从 Release 包解压后直接运行：
+从 [GitHub Releases](https://github.com/jf200s/TaskMgrLite/releases/latest) 下载并解压后直接运行：
 
 ```powershell
 TaskMgrLite.exe
@@ -81,22 +83,22 @@ D:\path\to\TaskMgrLite.exe
 - **结束进程结果**：右下角非阻塞 Toast；失败可点“详情”，拒绝访问时出现“提权重启”。Toast 8 秒自动隐藏。
 - **权限不足**：Toast 里的“提权重启”会用 `runas` 重启，并恢复搜索词、折叠集合、视图模式和列排序；也可以直接右键 exe 选择“以管理员身份运行”。
 
-## 性能基线（本机实测）
+## 性能基线（0.1.01 本机实测）
 
-Windows 11 / .NET 11.0.100：
+Windows 11 / .NET 11.0.100，2026-11-22：
 
-- 启动 10 次：841 / 843 / 813 / 777 / 811 / 766 / 776 / 804 / 822 / 770ms，中位 **807.5ms**。
+- 启动 10 次：822 / 845 / 811 / 793 / 815 / 790 / 825 / 815 / 796 / 797ms，中位 **813ms**（min 790 / max 845）。
   - 未达到 800ms 的内部目标；原锁定口径 <1500ms 通过。
-- 125 秒真实长跑（440 个进程，未选中详情）：
-  - 专用工作集：min 60.9 / mean 64.8 / max **70.8MB**（<80MB）
-  - 工作集 max 165.5MB；私有提交 max 105.6MB
+- 125 秒真实长跑（约 360–400 个进程，未选中详情）：
+  - 专用工作集：min 47.9 / mean 62.3 / max **69.1MB**（<80MB）
+  - 工作集 max 164.7MB；私有提交 max 101.8MB
   - GC：Gen0=2，Gen1=1，Gen2=0
-  - 句柄：669–699
-  - 托管堆：6.4–18.3MB
-  - 统计分配：mean 0.10MB/s，max 1.75MB/s
-  - `[enum]` 126 次：mean 0.6KB/次，max 71KB/次，min 0
+  - 句柄：737–751
+  - 托管堆：5.8–20.3MB
+  - 统计分配：mean 0.14MB/s，max 1.63MB/s
+  - `[enum]` 155 次：mean 0.4KB/次，max 62KB/次，min 0
 
-这些数字是实际采样结果，不把“日志前的 0KB”当作整轮零分配。Gen2=0、125 秒内未破 80MB，目前按无泄漏处理。
+进程数比 Round 4 基线少（约 360–400 vs 440），内存数字不宜直接横向比较。这些数字是 0.1.01 发布包的实际采样结果，不把“日志前的 0KB”当作整轮零分配。Gen2=0、125 秒内未破 80MB，目前按无泄漏处理。
 
 ## 架构一句话
 
@@ -139,7 +141,7 @@ NtQuerySystemInformation(class 5) → 零分配 unsafe 解析
 - 二进制未签名，首次运行可能触发 Windows SmartScreen。
 - Mica/圆角只在 Windows 11 生效；Windows 10 自动回退纯暗色。
 - 受保护进程（PPL/系统进程）即使提权也可能无法读取路径或结束。
-- 800ms 启动目标未达成，当前接受 807.5ms；不为了 7.5ms 引入复杂懒加载。
+- 800ms 启动目标未达成，当前 0.1.01 中位 813ms；不为了 13ms 引入复杂懒加载。
 - 树杀只覆盖点击时快照；点击后新出生的后代需要下一轮手动处理。
 - 列排序不是实时排序：内存/CPU 每秒变化后，需要重新点列头或切换模式才会重排；列头箭头只表示当前排序条件。
 

@@ -396,8 +396,9 @@ Equal(2, loaded.Value.Collapsed.Length, "collapsed");
 ### 0.1.01 发布产物
 
 - 包：`dist\TaskMgrLite-win-x64-0.1.01.zip`，59.9MB（260 files / 137.8MB unpacked）。
-- SHA256：`94394B0798AED673CEA43F52228F061D25280CA40196DC0801EC9EC8641A6658`。
-- exe 文件版本：`0.1.01.0`；`VERSION.txt`：`TaskMgrLite 0.1.01`；ProductVersion `0.1.01+e620f0b`。
-- UI 回归（树形/平铺选中、右键菜单 4/4）在 0.2.0 同代码构建上通过；版本改为 0.1.01 后用 `release.ps1 -Version 0.1.01` 重建最终包，selftest 65/0 + diag 全绿，代码未变。
+- SHA256：`7B9AAFB97BC9449BB7F839E48021D484A0CAD718F9D783648C59A5356DB15258`。
+- exe 文件版本：`0.1.01.0`；`VERSION.txt`：`TaskMgrLite 0.1.01`；ProductVersion `0.1.01+2229d41`。
+- UI 回归（树形/平铺选中、右键菜单 4/4）在 0.2.0 同代码构建上通过；最终 0.1.01 包在 README 性能基线/截图更新后重建，selftest 65/0 + diag 全绿，代码未变。
+- README 性能基线按 0.1.01 重测：启动 10 次中位 813ms；125 秒长跑专用工作集 max 69.1MB；截图更新为当前 UI（排序箭头 + 详情面板）。
 - tag `v0.1.01` 指向 `e620f0b`；`dist/` 已清理旧的 0.1.0、0.2.0、20261122 包。
 - 包内无 PDB / XML / log；README、LICENSE、docs、.NET `LICENSE.txt`、`ThirdPartyNotices.txt` 齐全。
