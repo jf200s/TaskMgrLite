@@ -68,9 +68,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private ProcessViewMode _viewMode = ProcessViewMode.Tree;
 
     // 列排序状态。属于视图层但不属于某个模式：切到树形时临时挂起（树序必须保持父子相邻），
-    // 切回平铺时原样恢复。挂在 VM 上是为了让提权重启和模式切换共用同一份事实。
-    private string? _sortKey;
-    private ListSortDirection _sortDirection = ListSortDirection.Ascending;
+    // 切回平铺时原样恢复。挂在 VM 上，模式切换和提权恢复共用同一份事实。
+    private SortState _sort = SortState.Empty;
 
     private int _uiPending;
     private bool _firstApplied;
@@ -640,7 +639,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _viewMode = ProcessViewMode.Tree;
 
         // 树序和列排序互斥：树形下父子必须相邻，所以只挂起排序、不清除。
-        // 排序条件保留在 _sortKey/_sortDirection，切回平铺时恢复。
+        // 排序条件保留在 _sort，切回平铺时恢复。
         if (View is ListCollectionView view && view.SortDescriptions.Count > 0)
         {
             using (view.DeferRefresh())
@@ -674,12 +673,11 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         StatusText = $"平铺 · {_rowsByKey.Count} 条" + DescribeStoredSort();
     }
 
-    public void ApplySort(string propertyName, ListSortDirection direction)
+    public void ApplySort(SortState sort)
     {
         // 先落排序字段，再切模式：SetFlatMode 内部的 ApplyStoredSort 会直接
         // 用上新排序，避免"先按旧序排一遍、再按新序排一遍"的重复刷新。
-        _sortKey = propertyName;
-        _sortDirection = direction;
+        _sort = sort;
 
         if (_viewMode == ProcessViewMode.Flat)
         {
@@ -697,52 +695,34 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     /// 列头点击：同一列在升序/降序之间翻转，换一列则从升序开始。
     /// 树形下点列头会先切平铺（排序即平铺），再应用排序。
     /// </summary>
-    public void ToggleSort(string propertyName)
-    {
-        ListSortDirection direction =
-            _sortKey == propertyName && _sortDirection == ListSortDirection.Ascending
-                ? ListSortDirection.Descending
-                : ListSortDirection.Ascending;
+    public void ToggleSort(string propertyName) => ApplySort(_sort.Next(propertyName));
 
-        ApplySort(propertyName, direction);
-    }
-
-    /// <summary>把当前挂起的排序条件应用到视图。没有排序时是空操作。</summary>
+    /// <summary>把当前挂起的排序条件应用到视图。树形或无排序时是空操作。</summary>
     private void ApplyStoredSort()
     {
-        if (_sortKey is null) return;
+        if (!_sort.ShouldApply(_viewMode)) return;
         if (View is not ListCollectionView view) return;
+
+        string key = _sort.Key!;
 
         using (view.DeferRefresh())
         {
             view.SortDescriptions.Clear();
-            view.SortDescriptions.Add(new SortDescription(_sortKey, _sortDirection));
+            view.SortDescriptions.Add(new SortDescription(key, _sort.Direction));
         }
     }
 
     /// <summary>树形下排序被挂起时，在状态栏说清楚它还在，只是没生效。</summary>
     private string DescribePendingSort() =>
-        _viewMode == ProcessViewMode.Tree && _sortKey is not null
-            ? $"（按 {SortColumnName(_sortKey)} 的排序已保留，切回平铺恢复）"
+        _sort.IsSuspended(_viewMode)
+            ? $"（按 {SortState.ColumnName(_sort.Key!)} 的排序已保留，切回平铺恢复）"
             : string.Empty;
 
     /// <summary>平铺下显示当前生效的排序，让用户知道排序没有丢。</summary>
     private string DescribeStoredSort() =>
-        _sortKey is null
+        !_sort.HasSort
             ? string.Empty
-            : $" · 按 {SortColumnName(_sortKey)} {(_sortDirection == ListSortDirection.Ascending ? "升序" : "降序")}";
-
-    private static string SortColumnName(string key) => key switch
-    {
-        "Name" => "名称",
-        "Pid" => "PID",
-        "ParentPid" => "父 PID",
-        "CpuPercent" => "CPU %",
-        "MemoryMb" => "内存（专用）",
-        "HandleCount" => "句柄",
-        "CommandLine" => "命令行",
-        _ => key
-    };
+            : $" · 按 {SortState.ColumnName(_sort.Key!)} {(_sort.Direction == ListSortDirection.Ascending ? "升序" : "降序")}";
 
     private void EnsureNodeCapacity(int count)
     {

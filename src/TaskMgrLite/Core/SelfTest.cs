@@ -1,4 +1,5 @@
 ﻿using System.Collections.Specialized;
+using System.ComponentModel;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
@@ -49,6 +50,9 @@ public static class SelfTest
         Check("ui state rejects path outside root", UiStateRejectsPathOutsideRoot);
         Check("elevation args preserve flags and path", ElevationArguments);
         Check("restore forces flat with search", UiStateNormalizeForcesFlat);
+        Check("sort next flips same key", SortNextFlipsSameKey);
+        Check("sort next resets on new key", SortNextResetsOnNewKey);
+        Check("sort state suspends in tree and resumes in flat", SortStateModeGate);
         Check("ok cache never expires", OkCacheNeverExpires);
         Check("negative cache expires at 30s", NegativeCacheExpiresAt30s);
         Check("error cache expires at 30s", ErrorCacheExpiresAt30s);
@@ -536,6 +540,44 @@ public static class SelfTest
             DateTime.UtcNow).Normalize();
 
         Equal((int)ProcessViewMode.Tree, (int)empty.ViewMode, "empty keeps tree");
+    }
+
+    private static void SortNextFlipsSameKey()
+    {
+        SortState state = SortState.Empty.Next("Pid");
+        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "first click ascending");
+
+        state = state.Next("Pid");
+        Equal((int)ListSortDirection.Descending, (int)state.Direction, "same key flips to descending");
+
+        state = state.Next("Pid");
+        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "same key flips back");
+    }
+
+    private static void SortNextResetsOnNewKey()
+    {
+        SortState state = SortState.Empty.Next("Pid").Next("Pid");
+        Equal((int)ListSortDirection.Descending, (int)state.Direction, "setup descending");
+
+        state = state.Next("Name");
+        EqualText("Name", state.Key!, "new key");
+        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "new key starts ascending");
+    }
+
+    private static void SortStateModeGate()
+    {
+        SortState none = SortState.Empty;
+        True(!none.ShouldApply(ProcessViewMode.Flat), "empty has nothing to apply");
+        True(!none.IsSuspended(ProcessViewMode.Tree), "empty has nothing to suspend");
+
+        SortState sorted = none.Next("Pid");
+        True(!sorted.ShouldApply(ProcessViewMode.Tree), "tree suspends sort");
+        True(sorted.IsSuspended(ProcessViewMode.Tree), "tree reports suspension");
+        True(sorted.ShouldApply(ProcessViewMode.Flat), "flat applies sort");
+        True(!sorted.IsSuspended(ProcessViewMode.Flat), "flat is not suspended");
+
+        True(SortState.NormalizeKey("Pid") is not null, "known key kept");
+        True(SortState.NormalizeKey("Bogus") is null, "unknown key rejected");
     }
 
     private static void OkCacheNeverExpires()
