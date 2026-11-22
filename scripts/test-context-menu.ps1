@@ -1,6 +1,7 @@
 #Requires -Version 5.1
 # UI automation for the right-click menu. ASCII-only on purpose.
 # It moves the mouse and overwrites the clipboard; both are restored in finally.
+param([string]$Exe = '')
 $ErrorActionPreference = 'Stop'
 
 Add-Type -AssemblyName UIAutomationClient
@@ -18,7 +19,12 @@ public static class UiNative {
 '@
 
 $root = [System.Windows.Automation.AutomationElement]::RootElement
-$exe = Join-Path (Split-Path -Parent $PSScriptRoot) 'publish\TaskMgrLite.exe'
+if ([string]::IsNullOrWhiteSpace($Exe)) {
+    $exe = Join-Path (Split-Path -Parent $PSScriptRoot) 'publish\TaskMgrLite.exe'
+}
+else {
+    $exe = (Resolve-Path $Exe).Path
+}
 if (-not (Test-Path $exe)) { throw "not found: $exe (run scripts\build.ps1 first)" }
 
 $oldClipboard = Get-Clipboard -Raw -ErrorAction SilentlyContinue

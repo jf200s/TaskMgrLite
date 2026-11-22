@@ -39,8 +39,12 @@ Write-Host "diag exit=$code"
 if ($code -ne 0) { exit $code }
 
 if ($Ui) {
+    Write-Host "`n== ui tree/flat selection ==" -ForegroundColor Cyan
+    & (Join-Path $PSScriptRoot 'test-tree-flat-selection.ps1') -Exe $exe
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
     Write-Host "`n== ui context menu ==" -ForegroundColor Cyan
-    & (Join-Path $PSScriptRoot 'test-context-menu.ps1')
+    & (Join-Path $PSScriptRoot 'test-context-menu.ps1') -Exe $exe
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 

@@ -3,7 +3,8 @@
 # ASCII-only on purpose.
 param(
     [string]$Version = (Get-Date -Format 'yyyyMMdd'),
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [switch]$Ui
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,6 +42,29 @@ if (-not $SkipTests) {
     $p = Start-Process -FilePath $exe -ArgumentList '--selftest' -Wait -PassThru
     Write-Host "selftest exit=$($p.ExitCode)"
     if ($p.ExitCode -ne 0) { throw 'selftest failed' }
+
+    foreach ($diag in @('--diag-round3', '--diag-round4')) {
+        Write-Host "`n== $diag ==" -ForegroundColor Cyan
+        $p = Start-Process -FilePath $exe -ArgumentList $diag -Wait -PassThru
+        Write-Host "$diag exit=$($p.ExitCode)"
+        if ($p.ExitCode -ne 0) { throw "$diag failed" }
+    }
+}
+
+if ($Ui) {
+    if ($SkipTests) { throw '-Ui cannot be combined with -SkipTests' }
+
+    Write-Host "`n== ui: tree/flat selection ==" -ForegroundColor Cyan
+    $selectionTest = Join-Path $PSScriptRoot 'test-tree-flat-selection.ps1'
+    if (-not (Test-Path $selectionTest)) { throw "missing UI test: $selectionTest" }
+    & $selectionTest -Exe $exe
+    if ($LASTEXITCODE -ne 0) { throw 'tree/flat selection UI test failed' }
+
+    Write-Host "`n== ui: context menu ==" -ForegroundColor Cyan
+    $menuTest = Join-Path $PSScriptRoot 'test-context-menu.ps1'
+    if (-not (Test-Path $menuTest)) { throw "missing UI test: $menuTest" }
+    & $menuTest -Exe $exe
+    if ($LASTEXITCODE -ne 0) { throw 'context menu UI test failed' }
 }
 
 Write-Host "`n== strip build artifacts ==" -ForegroundColor Cyan
@@ -49,6 +73,9 @@ Get-ChildItem -Path $stage -Recurse -File -Force -Include *.pdb,*.xml,*.log,*.io
     Remove-Item -Force
 $logs = Join-Path $stage 'logs'
 if (Test-Path $logs) { Remove-Item $logs -Recurse -Force }
+
+"TaskMgrLite {0}" -f $Version |
+    Set-Content -Path (Join-Path $stage 'VERSION.txt') -Encoding ASCII
 
 Write-Host "`n== add docs ==" -ForegroundColor Cyan
 Copy-Item $readme (Join-Path $stage 'README.md') -Force
@@ -79,6 +106,7 @@ $files = Get-ChildItem $stage -Recurse -File
 $sizeMb = ($files | Measure-Object Length -Sum).Sum / 1MB
 
 Write-Host "`n== done ==" -ForegroundColor Green
+Write-Host "version: $Version"
 Write-Host "folder : $stage"
 Write-Host "exe    : $exe"
 Write-Host "zip    : $zip"

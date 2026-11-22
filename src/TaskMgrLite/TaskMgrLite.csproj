@@ -13,6 +13,7 @@
 
     <AssemblyName>TaskMgrLite</AssemblyName>
     <RootNamespace>TaskMgrLite</RootNamespace>
+    <Version>0.2.0</Version>
 
     <!-- exe 与任务栏图标；app.ico 含 16~256 九档，窗口图标另以 Resource 引用 -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>

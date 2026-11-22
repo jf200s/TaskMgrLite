@@ -377,3 +377,18 @@ Equal(2, loaded.Value.Collapsed.Length, "collapsed");
   - `--restore-ui` 启动后 `SearchBox=svchost`，状态文件被删除。
 - UAC 弹窗本身仍无法在自检中自动化；提权后的恢复逻辑通过状态文件与参数拼接用例覆盖，UAC 交互留手工验证。
 - 未运行 `release.ps1`，未生成发布包。
+
+## 后续补丁：收尾三个洞（2026-11-22）
+
+| 提交 | 内容 |
+|---|---|
+| `a910225` | 排序状态抽成 `SortState` 纯状态机，新增 3 个自检用例 |
+| `b0a320c` | `UiState` 保存/恢复 `SortKey` / `SortDirection`，兼容旧 JSON |
+| `1390981` | 批量替换后恢复仍可见的选中行；新增树形/平铺选中 UIA 用例 |
+| `6a749ca` | 列头排序箭头 ▲/▼；树形挂起时隐藏 |
+
+验证：
+
+- `--selftest`：**65 passed, 0 failed**。
+- UIA：PID 升序在树形/平铺往返、搜索强制平铺、清空搜索后保留；`--restore-ui` 首屏按保存的排序显示；排序箭头可见；折叠大量分支后选中子行，切平铺选中不丢。
+- 排序不是实时排序：这是 `ListCollectionView` 的既定行为，README 已注明；箭头只表示当前排序条件。

@@ -2,6 +2,7 @@
 # UIA regression: collapse a large part of the tree, select a child in an
 # expanded branch, then switch to flat and assert the selection survives.
 # ASCII-only on purpose.
+param([string]$Exe = '')
 $ErrorActionPreference = 'Stop'
 
 Add-Type -AssemblyName UIAutomationClient
@@ -13,7 +14,12 @@ $flatLabel = [string][char]0x5E73 + [string][char]0x94FA
 $treeLabel = [string][char]0x6811 + [string][char]0x5F62
 
 $root = [System.Windows.Automation.AutomationElement]::RootElement
-$exe = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\TaskMgrLite\bin\Release\net11.0-windows\TaskMgrLite.exe'
+if ([string]::IsNullOrWhiteSpace($Exe)) {
+    $exe = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\TaskMgrLite\bin\Release\net11.0-windows\TaskMgrLite.exe'
+}
+else {
+    $exe = (Resolve-Path $Exe).Path
+}
 if (-not (Test-Path $exe)) { throw "not found: $exe (build Release first)" }
 
 function Find-MainWindow([int]$processId) {
