@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml/badge.svg)](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml)
 
-> 当前版本 **0.1.01** · [Release](https://github.com/jf200s/TaskMgrLite/releases/tag/v0.1.01) · [Changelog](CHANGELOG.md)
+> 当前版本 **0.1.02** · [Release](https://github.com/jf200s/TaskMgrLite/releases/tag/v0.1.02) · [Changelog](CHANGELOG.md)
 
 一个为“更快到达”而做的 Windows 任务管理器替代品。不是信息更多，而是启动更快、操作路径更短、底层解析更干净。
 
@@ -11,8 +11,8 @@
 ## 硬核特性
 
 - **原生解析，不走 WMI / PerformanceCounter**：一次 `NtQuerySystemInformation(SystemProcessInformation)` 拿全量进程，unsafe 偏移直读，零分配解析。
-- **极速启动**：自包含 ReadyToRun 发布，不压缩单文件；0.1.01 本机 10 次实测中位 **813ms**。
-- **极低分配**：1Hz 采集稳态 `[enum]` 分配多数为 0，0.1.01 的 125 秒长跑统计均值 **0.14MB/s**；新进程名称/状态增长时单次峰值约 62KB。
+- **极速启动**：自包含 ReadyToRun 发布，不压缩单文件；0.1.x 本机 10 次实测中位 **813ms**。
+- **极低分配**：1Hz 采集稳态 `[enum]` 分配多数为 0，0.1.x 的 125 秒长跑统计均值 **0.14MB/s**；新进程名称/状态增长时单次峰值约 62KB。
 - **300+ 进程可用**：树形结构在采集侧建 parent→children 索引，UI 侧 O(n) 展平为可见行，交给 ListView 虚拟化。
 - **不可变快照 + 原子交换**：采集线程只生产不可变数组，UI 无锁读取；UI 忙时覆盖式丢弃旧快照，不排队。
 - **命令行懒加载**：只在行进入可视区或选中时走 `OpenProcess + NtQueryInformationProcess(60)`，LRU 512；`AccessDenied` / `Error` 失败缓存 30 秒后自动重试。
@@ -85,7 +85,7 @@ D:\path\to\TaskMgrLite.exe
 - **结束进程结果**：右下角非阻塞 Toast；失败可点“详情”，拒绝访问时出现“提权重启”。Toast 8 秒自动隐藏。
 - **权限不足**：Toast 里的“提权重启”会用 `runas` 重启，并恢复搜索词、折叠集合、视图模式和列排序；也可以直接右键 exe 选择“以管理员身份运行”。
 
-## 性能基线（0.1.01 本机实测）
+## 性能基线（0.1.x 本机实测）
 
 Windows 11 / .NET 11.0.100，2026-11-22：
 
@@ -143,7 +143,7 @@ NtQuerySystemInformation(class 5) → 零分配 unsafe 解析
 - 二进制未签名，首次运行可能触发 Windows SmartScreen。
 - Mica/圆角只在 Windows 11 生效；Windows 10 自动回退纯暗色。
 - 受保护进程（PPL/系统进程）即使提权也可能无法读取路径或结束。
-- 800ms 启动目标未达成，当前 0.1.01 中位 813ms；不为了 13ms 引入复杂懒加载。
+- 800ms 启动目标未达成，当前 0.1.x 中位 813ms；不为了 13ms 引入复杂懒加载。
 - 树杀只覆盖点击时快照；点击后新出生的后代需要下一轮手动处理。
 - 列排序不是实时排序：内存/CPU 每秒变化后，需要重新点列头或切换模式才会重排；列头箭头只表示当前排序条件。
 - 命令行是懒加载的，不支持排序；点击“命令行”列头会提示，列头本身也做了弱化处理。
