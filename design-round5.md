@@ -281,7 +281,7 @@ public sealed class CommandLineCache
 
 ## 单元测试清单
 
-全部加进 `Core/SelfTest.cs`，保持“不碰 WPF”的原则。预计新增 15–16 个用例，43 → 58–59。
+全部加进 `Core/SelfTest.cs`，保持“不碰 WPF”的原则。计划新增 15–16 个用例；实际新增 17 个，43 → 60。
 
 | # | 用例 | 断言 |
 |---|---|---|
@@ -352,3 +352,28 @@ Equal(2, loaded.Value.Collapsed.Length, "collapsed");
 | 30 秒 TTL 造成重试风暴 | 只在 `Request` 时惰性过期，`_pending` 去重，队列容量不变 |
 | 临时状态文件损坏 | 版本、大小、时间戳三重校验，失败静默忽略并删除 |
 | 左右键与 ListView 默认行为冲突 | 只在树形、有子节点、目标状态确实变化时 `Handled` |
+
+## 实施结果（2026-11-22）
+
+已按模块提交：
+
+| 提交 | 内容 |
+|---|---|
+| `d916c09` | Round 5-1：折叠时选中态迁移到被折叠节点 |
+| `89cfd38` | Round 5-2：提权重启恢复搜索、折叠和视图模式 |
+| `a6431dc` | Round 5-3：命令行失败缓存 30 秒 TTL |
+| `556dd50` | Round 5-4：树形模式左右键折叠/展开 |
+| `22a6cdd` | Round 5-1 修正：`ToggleExpanded` 目标状态取反 |
+
+### 验证
+
+- Release 构建：0 warning / 0 error。
+- `--selftest`：**60 passed, 0 failed**（原 43 + 新增 17）。
+- `--diag-round3` / `--diag-round4`：退出码 0。
+- 启动冒烟：`--probe-exit` 首帧 842.5ms（单次样本，与基线口径一致）。
+- UI Automation 实测：
+  - 选中子进程后折叠父进程，选中迁移到父行（456 → 456）。
+  - Left / Right 切换展开图标（U+25BE ↔ U+25B8）。
+  - `--restore-ui` 启动后 `SearchBox=svchost`，状态文件被删除。
+- UAC 弹窗本身仍无法在自检中自动化；提权后的恢复逻辑通过状态文件与参数拼接用例覆盖，UAC 交互留手工验证。
+- 未运行 `release.ps1`，未生成发布包。
