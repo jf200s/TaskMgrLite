@@ -133,7 +133,7 @@ NtQuerySystemInformation(class 5) → 零分配 unsafe 解析
 
 ## 已知限制
 
-- 发布包解压后约 137MB（自包含 WPF 运行时），zip 约 62MB；没有安装器，不是单文件，目的是保住冷启动。
+- 发布包解压后约 137MB（自包含 WPF 运行时），zip 约 60MB；没有安装器，不是单文件，目的是保住冷启动。
 - 二进制未签名，首次运行可能触发 Windows SmartScreen。
 - Mica/圆角只在 Windows 11 生效；Windows 10 自动回退纯暗色。
 - 受保护进程（PPL/系统进程）即使提权也可能无法读取路径或结束。
