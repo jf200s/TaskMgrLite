@@ -114,6 +114,10 @@
                 Padding="14,10"
                 Visibility="{Binding HasSelection, Converter={StaticResource BoolToVis}}">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="280" />
                     <ColumnDefinition Width="*" />
@@ -160,6 +164,69 @@
                                MaxHeight="46"
                                ToolTip="{Binding SelectedRow.CommandLine}" />
                 </StackPanel>
+
+                <Border Grid.Row="1" Grid.ColumnSpan="2"
+                        Margin="0,8,0,0" Padding="0,8,0,0"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="0,1,0,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="网络端口"
+                                       Foreground="{StaticResource TextMuted}"
+                                       VerticalAlignment="Center" />
+
+                            <Button Command="{Binding QueryPortsCommand}"
+                                    Margin="10,0,0,0"
+                                    AutomationProperties.AutomationId="PortQueryButton">
+                                <Button.Style>
+                                    <Style TargetType="Button"
+                                           BasedOn="{StaticResource ToolbarButton}">
+                                        <Setter Property="Content" Value="查询端口" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding PortState.IsBusy}" Value="True">
+                                                <Setter Property="Content" Value="查询中..." />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
+
+                            <TextBlock Text="{Binding PortState.StatusText}"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="10,0,0,0"
+                                       VerticalAlignment="Center"
+                                       AutomationProperties.AutomationId="PortStatus" />
+                        </StackPanel>
+
+                        <ListView Grid.Row="1"
+                                  ItemsSource="{Binding PortState.Entries}"
+                                  MaxHeight="120"
+                                  Margin="0,6,0,0"
+                                  BorderThickness="0"
+                                  Background="Transparent"
+                                  Foreground="{StaticResource TextPrimary}"
+                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                  AutomationProperties.AutomationId="PortList">
+                            <ListView.View>
+                                <GridView>
+                                    <GridViewColumn Header="协议" Width="70"
+                                                    DisplayMemberBinding="{Binding Protocol}" />
+                                    <GridViewColumn Header="本地地址" Width="230"
+                                                    DisplayMemberBinding="{Binding LocalEndpoint}" />
+                                    <GridViewColumn Header="远程地址" Width="230"
+                                                    DisplayMemberBinding="{Binding RemoteEndpoint}" />
+                                    <GridViewColumn Header="状态" Width="120"
+                                                    DisplayMemberBinding="{Binding State}" />
+                                </GridView>
+                            </ListView.View>
+                        </ListView>
+                    </Grid>
+                </Border>
             </Grid>
         </Border>
 
