@@ -12,16 +12,37 @@ public readonly record struct SortState(string? Key, ListSortDirection Direction
 
     public bool HasSort => Key is not null;
 
-    /// <summary>同一列在升序/降序之间翻转；换一列从升序开始。</summary>
+    /// <summary>
+    /// 同一列在升序/降序之间翻转；换一列按列类型给默认方向：
+    /// 数值列先降序（找最大/最多），文本列先升序。
+    /// 命令行列懒加载，不允许排序。
+    /// </summary>
     public SortState Next(string key)
     {
-        ListSortDirection direction =
-            Key == key && Direction == ListSortDirection.Ascending
+        if (!CanSort(key))
+            return this;
+
+        if (Key == key)
+        {
+            ListSortDirection flipped = Direction == ListSortDirection.Ascending
                 ? ListSortDirection.Descending
                 : ListSortDirection.Ascending;
+            return new SortState(key, flipped);
+        }
 
-        return new SortState(key, direction);
+        return new SortState(key, DefaultDirection(key));
     }
+
+    /// <summary>PID / 父 PID / CPU / 内存 / 句柄属于数值列。</summary>
+    public static bool IsNumericKey(string? key) => key is
+        "Pid" or "ParentPid" or "CpuPercent" or "MemoryMb" or "HandleCount";
+
+    public static ListSortDirection DefaultDirection(string key) =>
+        IsNumericKey(key) ? ListSortDirection.Descending : ListSortDirection.Ascending;
+
+    /// <summary>命令行是懒加载的，排序结果不完整，直接禁用。</summary>
+    public static bool CanSort(string? key) =>
+        IsKnownKey(key) && key != "CommandLine";
 
     /// <summary>平铺模式且有排序时才应用。</summary>
     public bool ShouldApply(ProcessViewMode mode) =>
@@ -35,9 +56,9 @@ public readonly record struct SortState(string? Key, ListSortDirection Direction
         "Name" or "Pid" or "ParentPid" or "CpuPercent" or
         "MemoryMb" or "HandleCount" or "CommandLine";
 
-    /// <summary>只接受真实存在的列，避免坏 JSON 让 SortDescription 抛异常。</summary>
+    /// <summary>只接受可排序的真实列，避免坏 JSON 让 SortDescription 抛异常。</summary>
     public static string? NormalizeKey(string? key) =>
-        IsKnownKey(key) ? key : null;
+        CanSort(key) ? key : null;
 
     public static ListSortDirection NormalizeDirection(ListSortDirection direction) =>
         direction == ListSortDirection.Descending

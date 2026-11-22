@@ -55,6 +55,9 @@ public static class SelfTest
         Check("sort next flips same key", SortNextFlipsSameKey);
         Check("sort next resets on new key", SortNextResetsOnNewKey);
         Check("sort state suspends in tree and resumes in flat", SortStateModeGate);
+        Check("sort first numeric click is descending", SortFirstNumericDescending);
+        Check("sort first text click is ascending", SortFirstTextAscending);
+        Check("sort command line is disabled", SortCommandLineDisabled);
         Check("ok cache never expires", OkCacheNeverExpires);
         Check("negative cache expires at 30s", NegativeCacheExpiresAt30s);
         Check("error cache expires at 30s", ErrorCacheExpiresAt30s);
@@ -602,23 +605,52 @@ public static class SelfTest
     private static void SortNextFlipsSameKey()
     {
         SortState state = SortState.Empty.Next("Pid");
-        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "first click ascending");
+        Equal((int)ListSortDirection.Descending, (int)state.Direction, "numeric first click descending");
 
         state = state.Next("Pid");
-        Equal((int)ListSortDirection.Descending, (int)state.Direction, "same key flips to descending");
+        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "same key flips to ascending");
 
         state = state.Next("Pid");
-        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "same key flips back");
+        Equal((int)ListSortDirection.Descending, (int)state.Direction, "same key flips back");
     }
 
     private static void SortNextResetsOnNewKey()
     {
-        SortState state = SortState.Empty.Next("Pid").Next("Pid");
-        Equal((int)ListSortDirection.Descending, (int)state.Direction, "setup descending");
+        SortState state = SortState.Empty.Next("Pid");
+        Equal((int)ListSortDirection.Descending, (int)state.Direction, "numeric default descending");
 
         state = state.Next("Name");
         EqualText("Name", state.Key!, "new key");
-        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "new key starts ascending");
+        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "text default ascending");
+    }
+
+    private static void SortFirstNumericDescending()
+    {
+        string[] numeric = { "Pid", "ParentPid", "CpuPercent", "MemoryMb", "HandleCount" };
+
+        foreach (string key in numeric)
+        {
+            True(SortState.IsNumericKey(key), key);
+            SortState state = SortState.Empty.Next(key);
+            EqualText(key, state.Key!, key);
+            Equal((int)ListSortDirection.Descending, (int)state.Direction, key);
+        }
+    }
+
+    private static void SortFirstTextAscending()
+    {
+        True(!SortState.IsNumericKey("Name"), "name is text");
+        SortState state = SortState.Empty.Next("Name");
+        EqualText("Name", state.Key!, "name key");
+        Equal((int)ListSortDirection.Ascending, (int)state.Direction, "text starts ascending");
+    }
+
+    private static void SortCommandLineDisabled()
+    {
+        True(!SortState.CanSort("CommandLine"), "command line cannot sort");
+        True(SortState.NormalizeKey("CommandLine") is null, "command line dropped from restore");
+        True(!SortState.Empty.Next("CommandLine").HasSort, "no sort state created");
+        True(SortState.CanSort("Name"), "name can sort");
     }
 
     private static void SortStateModeGate()
