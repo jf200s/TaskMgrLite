@@ -113,7 +113,7 @@ public partial class MainWindow : Window
         if (e.OriginalSource is Thumb) return;
 
         GridViewColumnHeader? header = FindAncestor<GridViewColumnHeader>(e.OriginalSource as DependencyObject);
-        if (header?.Content is not TextBlock { Tag: string key }) return;
+        if (header?.Content is not FrameworkElement { Tag: string key }) return;
         if (DataContext is not MainViewModel vm) return;
 
         // 方向判定问 VM：排序状态是 VM 的唯一事实，窗口不再自己记一份，

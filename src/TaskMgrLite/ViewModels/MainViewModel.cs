@@ -148,6 +148,10 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public bool IsTreeMode => _viewMode == ProcessViewMode.Tree;
     public string ModeLabel => IsTreeMode ? "树形" : "平铺";
 
+    // 列头排序箭头用；树形下箭头隐藏，但状态仍保留。
+    public string? SortKey => _sort.Key;
+    public ListSortDirection SortDirection => _sort.Direction;
+
     public ProcessRowViewModel? SelectedRow
     {
         get => _selectedRow;
@@ -697,6 +701,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         // 先落排序字段，再切模式：SetFlatMode 内部的 ApplyStoredSort 会直接
         // 用上新排序，避免"先按旧序排一遍、再按新序排一遍"的重复刷新。
         _sort = sort;
+        OnPropertyChanged(nameof(SortKey));
+        OnPropertyChanged(nameof(SortDirection));
 
         if (_viewMode == ProcessViewMode.Flat)
         {
