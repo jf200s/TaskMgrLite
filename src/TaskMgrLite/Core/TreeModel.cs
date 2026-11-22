@@ -18,6 +18,50 @@ public enum ProcessViewMode
 }
 
 /// <summary>
+/// 折叠时的选中迁移判断。展平结果是前序：祖先之后、深度仍大于祖先的连续行
+/// 就是它的子树。只在用户折叠时调用，O(n)，不进入 1Hz 热路径。
+/// </summary>
+public static class TreeSelection
+{
+    public static bool ShouldMoveSelection(
+        IReadOnlyList<FlatNode> flat,
+        ProcKey collapsed,
+        ProcKey? selected)
+    {
+        if (selected is not ProcKey candidateKey)
+            return false;
+
+        int ancestor = IndexOf(flat, collapsed);
+        if (ancestor < 0)
+            return false;
+
+        int candidate = IndexOf(flat, candidateKey);
+        if (candidate <= ancestor)
+            return false;
+
+        int depth = flat[ancestor].Depth;
+        for (int i = ancestor + 1; i <= candidate; i++)
+        {
+            if (flat[i].Depth <= depth)
+                return false;
+        }
+
+        return true;
+    }
+
+    private static int IndexOf(IReadOnlyList<FlatNode> flat, ProcKey key)
+    {
+        for (int i = 0; i < flat.Count; i++)
+        {
+            if (flat[i].Key.Equals(key))
+                return i;
+        }
+
+        return -1;
+    }
+}
+
+/// <summary>
 /// 把父子关系压成可见行序列（DFS 前序）。
 ///
 /// 复杂度 O(n)：计数排序建 children 索引，显式栈做 DFS。
@@ -348,13 +392,24 @@ public static class CollapseState
         ProcKey key,
         HashSet<ProcKey> parentsWithChildren)
     {
+        // 目标状态：当前已折叠 → 展开；当前已展开 → 折叠。
+        return Set(collapsed, key, expand: collapsed.Contains(key), parentsWithChildren);
+    }
+
+    /// <summary>
+    /// 显式设置展开状态。返回 false 表示没有变化：key 没有子节点、已经处于目标状态，
+    /// 或者这是一次落在上一帧旧行上的无效操作。
+    /// </summary>
+    public static bool Set(
+        HashSet<ProcKey> collapsed,
+        ProcKey key,
+        bool expand,
+        HashSet<ProcKey> parentsWithChildren)
+    {
         if (!parentsWithChildren.Contains(key))
             return false;
 
-        if (!collapsed.Remove(key))
-            collapsed.Add(key);
-
-        return true;
+        return expand ? collapsed.Remove(key) : collapsed.Add(key);
     }
 }
 

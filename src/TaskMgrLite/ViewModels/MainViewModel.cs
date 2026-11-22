@@ -568,20 +568,41 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (_viewMode != ProcessViewMode.Tree) return;
 
         ProcKey key = row.KeyStruct;
+        if (!_rowsByKey.ContainsKey(key)) return;
+
+        SetExpanded(row, expand: !_collapsed.Contains(key));
+    }
+
+    /// <summary>
+    /// 显式设置展开状态。返回 false 表示没有状态变化（叶子、旧行、已经处于目标状态）。
+    /// 折叠当前选中行的祖先时，选中迁移到被折叠的节点，详情面板不清空。
+    /// </summary>
+    public bool SetExpanded(ProcessRowViewModel row, bool expand)
+    {
+        if (_viewMode != ProcessViewMode.Tree) return false;
+
+        ProcKey key = row.KeyStruct;
 
         // 点击可能落在上一帧的行上：快照刚把进程删掉、或刚删掉最后一个子进程，
-        // WPF 还没来得及移除容器。这里必须用当前快照的权威集合再校验一次，
-        // 否则会把一个已经不存在/已经变叶子的 key 塞回 _collapsed。
-        if (!_rowsByKey.ContainsKey(key) ||
-            !CollapseState.Toggle(_collapsed, key, _parentsWithChildren))
-        {
-            return;
-        }
+        // WPF 还没来得及移除容器。这里必须用当前快照的权威集合再校验一次。
+        if (!_rowsByKey.ContainsKey(key) || !_parentsWithChildren.Contains(key))
+            return false;
+
+        bool migrate = !expand &&
+                       TreeSelection.ShouldMoveSelection(_desired, key, _selectedRow?.KeyStruct);
+
+        if (!CollapseState.Set(_collapsed, key, expand, _parentsWithChildren))
+            return false;
 
         RebuildFromCurrentNodes();
         OnPropertyChanged(nameof(CountText));
 
+        // 先重建再设选中：ListView 删除被隐藏的行时会把 TwoWay 绑定清成 null。
+        if (migrate)
+            SelectedRow = row;
+
         StatusText = $"树形 · 可见 {Rows.Count} / 共 {_rowsByKey.Count} · 折叠 {_collapsed.Count}";
+        return true;
     }
 
     public void SetTreeMode()

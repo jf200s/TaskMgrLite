@@ -37,6 +37,10 @@ public static class SelfTest
         Check("last child death releases collapse", LastChildDeathReleasesCollapse);
         Check("parent dies while collapsed", ParentDiesWhileCollapsed);
         Check("stale or leaf toggle is rejected", ToggleRejectsStaleOrLeaf);
+        Check("selection moves to collapsed ancestor", SelectionMovesToCollapsedAncestor);
+        Check("selection stays outside collapsed subtree", SelectionStaysOutsideCollapsedSubtree);
+        Check("collapse set supports explicit expand", CollapseSetExplicit);
+        Check("leaf explicit expand is rejected", LeafExplicitExpandRejected);
         Check("collapsed set bounded under churn", CollapseBoundedUnderChurn);
         Check("visible list sync inserts and moves", VisibleListSyncWorks);
         Check("visible list sync random churn", VisibleListSyncRandomChurn);
@@ -315,6 +319,60 @@ public static class SelfTest
         True(!CollapseState.Toggle(collapsed, leaf, parents), "leaf rejected");
         True(!CollapseState.Toggle(collapsed, dead, parents), "dead key rejected");
         Equal(0, collapsed.Count, "invalid toggles leave set empty");
+    }
+
+    private static void SelectionMovesToCollapsedAncestor()
+    {
+        // 1(0) -> 2(1) -> 3(2), 1 -> 4(1), 5(0)
+        List<FlatNode> flat = FlatRows((1, 0), (2, 1), (3, 2), (4, 1), (5, 0));
+        ProcKey root = new(1, 1);
+
+        True(TreeSelection.ShouldMoveSelection(flat, root, new ProcKey(2, 1)), "direct child");
+        True(TreeSelection.ShouldMoveSelection(flat, root, new ProcKey(3, 1)), "grandchild");
+        True(!TreeSelection.ShouldMoveSelection(flat, root, root), "self");
+    }
+
+    private static void SelectionStaysOutsideCollapsedSubtree()
+    {
+        // 1(0) -> 2(1) -> 3(2), 1 -> 4(1), 5(0)
+        List<FlatNode> flat = FlatRows((1, 0), (2, 1), (3, 2), (4, 1), (5, 0));
+        ProcKey branch = new(2, 1);
+
+        True(!TreeSelection.ShouldMoveSelection(flat, branch, new ProcKey(4, 1)), "sibling branch");
+        True(!TreeSelection.ShouldMoveSelection(flat, branch, new ProcKey(5, 1)), "outside");
+        True(!TreeSelection.ShouldMoveSelection(flat, branch, branch), "self");
+        True(!TreeSelection.ShouldMoveSelection(flat, branch, null), "null selection");
+        True(!TreeSelection.ShouldMoveSelection(flat, new ProcKey(99, 1), new ProcKey(3, 1)),
+            "missing ancestor");
+    }
+
+    private static void CollapseSetExplicit()
+    {
+        ProcKey parent = new(1, 1);
+        var collapsed = new HashSet<ProcKey>();
+        var parents = new HashSet<ProcKey> { parent };
+
+        True(CollapseState.Set(collapsed, parent, expand: false, parents), "collapse changes");
+        True(collapsed.Contains(parent), "parent collapsed");
+
+        True(!CollapseState.Set(collapsed, parent, expand: false, parents), "repeat collapse no-op");
+
+        True(CollapseState.Set(collapsed, parent, expand: true, parents), "expand changes");
+        True(!collapsed.Contains(parent), "parent expanded");
+
+        True(!CollapseState.Set(collapsed, parent, expand: true, parents), "repeat expand no-op");
+    }
+
+    private static void LeafExplicitExpandRejected()
+    {
+        ProcKey parent = new(1, 1);
+        ProcKey leaf = new(2, 1);
+        var collapsed = new HashSet<ProcKey>();
+        var parents = new HashSet<ProcKey> { parent };
+
+        True(!CollapseState.Set(collapsed, leaf, expand: false, parents), "leaf collapse rejected");
+        True(!CollapseState.Set(collapsed, leaf, expand: true, parents), "leaf expand rejected");
+        Equal(0, collapsed.Count, "leaf leaves set empty");
     }
 
     private static void CollapseBoundedUnderChurn()
@@ -1101,6 +1159,14 @@ public static class SelfTest
         for (int i = 0; i < items.Length; i++)
             nodes[i] = new NodeRef(new ProcKey(items[i].Pid, 1), items[i].Parent);
         return nodes;
+    }
+
+    private static List<FlatNode> FlatRows(params (uint Pid, int Depth)[] rows)
+    {
+        var flat = new List<FlatNode>(rows.Length);
+        for (int i = 0; i < rows.Length; i++)
+            flat.Add(new FlatNode(new ProcKey(rows[i].Pid, 1), rows[i].Depth, true));
+        return flat;
     }
 
     private static List<FlatNode> Flatten(
