@@ -10,8 +10,8 @@ Add-Type -AssemblyName UIAutomationTypes
 
 $expandedGlyph = [string][char]0x25BE   # down triangle
 $collapsedGlyph = [string][char]0x25B8  # right triangle
-$flatLabel = [string][char]0x5E73 + [string][char]0x94FA
-$treeLabel = [string][char]0x6811 + [string][char]0x5F62
+$toFlatLabel = [string][char]0x5207 + [string][char]0x5230 + [string][char]0x5E73 + [string][char]0x94FA
+$toTreeLabel = [string][char]0x5207 + [string][char]0x5230 + [string][char]0x6811 + [string][char]0x5F62
 
 $root = [System.Windows.Automation.AutomationElement]::RootElement
 if ([string]::IsNullOrWhiteSpace($Exe)) {
@@ -110,7 +110,7 @@ function Find-ModeButton($window) {
     $buttons = $window.FindAll([System.Windows.Automation.TreeScope]::Descendants, $cond)
     for ($i = 0; $i -lt $buttons.Count; $i++) {
         $name = $buttons[$i].Current.Name
-        if ($name -eq $flatLabel -or $name -eq $treeLabel) { return $buttons[$i] }
+        if ($name -eq $toFlatLabel -or $name -eq $toTreeLabel) { return $buttons[$i] }
     }
     return $null
 }
@@ -219,9 +219,9 @@ try {
         }
         throw 'mode button not found'
     }
-    if ($mode.Current.Name -ne $treeLabel) {
+    if ($mode.Current.Name -ne $toFlatLabel) {
         $codes = (($mode.Current.Name.ToCharArray() | ForEach-Object { [int]$_ }) -join ',')
-        throw "expected tree mode before switch, got codes [$codes]"
+        throw "expected action 'to flat' before switch, got codes [$codes]"
     }
 
     Invoke-Element $mode
@@ -230,7 +230,7 @@ try {
     }
 
     $mode = Find-ModeButton $window
-    if ($null -eq $mode -or $mode.Current.Name -ne $flatLabel) {
+    if ($null -eq $mode -or $mode.Current.Name -ne $toTreeLabel) {
         throw 'did not switch to flat'
     }
 
