@@ -48,6 +48,8 @@ public static class SelfTest
         Check("ui state rejects bad version", UiStateRejectsBadVersion);
         Check("ui state rejects malformed and oversized", UiStateRejectsMalformedAndOversized);
         Check("ui state rejects path outside root", UiStateRejectsPathOutsideRoot);
+        Check("ui state accepts legacy json", UiStateAcceptsLegacyJson);
+        Check("ui state drops unknown sort key", UiStateDropsUnknownSortKey);
         Check("elevation args preserve flags and path", ElevationArguments);
         Check("restore forces flat with search", UiStateNormalizeForcesFlat);
         Check("sort next flips same key", SortNextFlipsSameKey);
@@ -402,7 +404,9 @@ public static class SelfTest
                 "svchost",
                 ProcessViewMode.Tree,
                 new[] { new ProcKey(10, 100), new ProcKey(20, 200) },
-                DateTime.UtcNow);
+                DateTime.UtcNow,
+                "Pid",
+                ListSortDirection.Descending);
 
             string path = UiStateStore.Save(state, root);
             True(File.Exists(path), "state file written");
@@ -416,6 +420,8 @@ public static class SelfTest
             Equal((int)ProcessViewMode.Flat, (int)restored.ViewMode, "search forces flat");
             Equal(2, restored.Collapsed.Length, "collapsed count");
             True(restored.Collapsed[0].Equals(new ProcKey(10, 100)), "first key");
+            EqualText("Pid", restored.SortKey!, "sort key restored");
+            Equal((int)ListSortDirection.Descending, (int)restored.SortDirection, "sort direction restored");
             True(!File.Exists(path), "state file deleted after load");
         }
         finally
@@ -506,6 +512,57 @@ public static class SelfTest
         {
             DeleteTempRoot(rootA);
             DeleteTempRoot(rootB);
+        }
+    }
+
+    private static void UiStateAcceptsLegacyJson()
+    {
+        string root = NewTempRoot();
+        try
+        {
+            string path = Path.Combine(root, "legacy.json");
+            File.WriteAllText(
+                path,
+                "{\"version\":1,\"savedAtUtc\":\"" + DateTime.UtcNow.ToString("O") +
+                "\",\"searchText\":\"\",\"viewMode\":\"Tree\",\"collapsed\":[]}");
+
+            UiState? loaded = UiStateStore.TryLoad(path, root);
+            True(loaded.HasValue, "legacy state loaded");
+            if (!loaded.HasValue) return;
+
+            True(loaded.Value.SortKey is null, "legacy has no sort key");
+            Equal((int)ListSortDirection.Ascending, (int)loaded.Value.SortDirection,
+                "legacy defaults to ascending");
+        }
+        finally
+        {
+            DeleteTempRoot(root);
+        }
+    }
+
+    private static void UiStateDropsUnknownSortKey()
+    {
+        string root = NewTempRoot();
+        try
+        {
+            string path = Path.Combine(root, "unknown-sort.json");
+            File.WriteAllText(
+                path,
+                "{\"version\":1,\"savedAtUtc\":\"" + DateTime.UtcNow.ToString("O") +
+                "\",\"searchText\":\"\",\"viewMode\":\"Flat\",\"collapsed\":[]," +
+                "\"sortKey\":\"Bogus\",\"sortDirection\":\"Descending\"}");
+
+            UiState? loaded = UiStateStore.TryLoad(path, root);
+            True(loaded.HasValue, "state with unknown sort loaded");
+            if (!loaded.HasValue) return;
+
+            True(loaded.Value.SortKey is null, "unknown sort key dropped");
+            Equal((int)ListSortDirection.Descending, (int)loaded.Value.SortDirection,
+                "direction still parsed");
+        }
+        finally
+        {
+            DeleteTempRoot(root);
         }
     }
 

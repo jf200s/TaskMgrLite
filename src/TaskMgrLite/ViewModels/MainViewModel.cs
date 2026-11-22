@@ -96,6 +96,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _searchText = normalized.SearchText;
             _appliedSearchText = normalized.SearchText;
             _viewMode = normalized.ViewMode;
+            _sort = new SortState(normalized.SortKey, normalized.SortDirection);
 
             foreach (ProcKey key in normalized.Collapsed)
                 _collapsed.Add(key);
@@ -506,12 +507,18 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         return report;
     }
 
-    /// <summary>提权重启前抓取最小 UI 状态；只包含搜索词、模式和折叠集合。</summary>
+    /// <summary>提权重启前抓取最小 UI 状态；包含搜索词、模式、折叠集合和列排序。</summary>
     public UiState CaptureUiState()
     {
         var collapsed = new ProcKey[_collapsed.Count];
         _collapsed.CopyTo(collapsed);
-        return new UiState(_searchText, _viewMode, collapsed, DateTime.UtcNow);
+        return new UiState(
+            _searchText,
+            _viewMode,
+            collapsed,
+            DateTime.UtcNow,
+            _sort.Key,
+            _sort.Direction);
     }
 
     public void Dispose()
@@ -564,6 +571,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             for (int i = 0; i < _desired.Count; i++)
                 _pendingAdds.Add(_rowsByKey[_desired[i].Key]);
             Rows.AddRangeReset(_pendingAdds);
+
+            // 恢复模式下首屏直接按保存的排序显示；树形/无排序时是空操作。
+            ApplyStoredSort();
         }
         else
         {

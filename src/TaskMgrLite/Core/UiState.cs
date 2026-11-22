@@ -1,14 +1,19 @@
+using System.ComponentModel;
+
 namespace TaskMgrLite.Core;
 
 /// <summary>
 /// 提权重启时跨进程传递的最小 UI 状态。
-/// 只保存搜索词、视图模式和折叠集合；不保存选中行、滚动位置或窗口位置。
+/// 保存搜索词、视图模式、折叠集合和列排序；不保存选中行、滚动位置或窗口位置。
+/// SortKey / SortDirection 是后加字段：旧 JSON 没有它们时默认无排序、升序，保持 version 1 兼容。
 /// </summary>
 public readonly record struct UiState(
     string SearchText,
     ProcessViewMode ViewMode,
     ProcKey[] Collapsed,
-    DateTime SavedAtUtc)
+    DateTime SavedAtUtc,
+    string? SortKey = null,
+    ListSortDirection SortDirection = ListSortDirection.Ascending)
 {
     public const int MaxSearchLength = 256;
     public const int MaxCollapsed = 4096;
@@ -28,6 +33,12 @@ public readonly record struct UiState(
             ? ViewMode
             : ProcessViewMode.Flat;
 
-        return new UiState(search, mode, collapsed, SavedAtUtc);
+        return new UiState(
+            search,
+            mode,
+            collapsed,
+            SavedAtUtc,
+            SortState.NormalizeKey(SortKey),
+            SortState.NormalizeDirection(SortDirection));
     }
 }

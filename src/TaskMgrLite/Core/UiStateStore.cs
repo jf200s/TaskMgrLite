@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Text;
 using System.Text.Json;
@@ -29,6 +30,8 @@ public static class UiStateStore
         public string? SearchText { get; set; }
         public string? ViewMode { get; set; }
         public List<KeyDto>? Collapsed { get; set; }
+        public string? SortKey { get; set; }
+        public string? SortDirection { get; set; }
     }
 
     private sealed class KeyDto
@@ -51,7 +54,9 @@ public static class UiStateStore
             SavedAtUtc = normalized.SavedAtUtc.ToUniversalTime(),
             SearchText = normalized.SearchText,
             ViewMode = normalized.ViewMode.ToString(),
-            Collapsed = new List<KeyDto>(normalized.Collapsed.Length)
+            Collapsed = new List<KeyDto>(normalized.Collapsed.Length),
+            SortKey = normalized.SortKey,
+            SortDirection = normalized.SortDirection.ToString()
         };
 
         foreach (ProcKey key in normalized.Collapsed)
@@ -143,7 +148,22 @@ public static class UiStateStore
                     collapsed[i] = new ProcKey(keys[i].Pid, keys[i].CreateTime);
             }
 
-            var state = new UiState(search, mode, collapsed, saved).Normalize();
+            ListSortDirection sortDirection = ListSortDirection.Ascending;
+            if (!string.IsNullOrWhiteSpace(dto.SortDirection) &&
+                Enum.TryParse(dto.SortDirection, ignoreCase: true, out ListSortDirection parsedDirection) &&
+                Enum.IsDefined(parsedDirection))
+            {
+                sortDirection = parsedDirection;
+            }
+
+            var state = new UiState(
+                search,
+                mode,
+                collapsed,
+                saved,
+                SortState.NormalizeKey(dto.SortKey),
+                sortDirection).Normalize();
+
             TryDelete(full, root);
             return state;
         }
