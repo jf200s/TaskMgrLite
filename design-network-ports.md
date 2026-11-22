@@ -460,7 +460,7 @@ private readonly PortQueryState _portState = new();
 private CancellationTokenSource? _portCts;
 
 public PortQueryState PortState => _portState;
-public ICommand QueryPortsCommand { get; }
+public RelayCommand QueryPortsCommand { get; }
 
 public bool CanQueryPorts =>
     !_disposed && UseRealData && _selectedRow is not null && !_portState.IsBusy;
@@ -712,3 +712,18 @@ Check("port state clears on selection change", PortStateClearsOnSelectionChange)
 - `PortQueryState.Entries` 只在按钮查询/切换选中行时 `Clear/Add`，不参与每秒刷新。
 - `SelectedRow` 切换时的 `Reset` 只清空一个通常为空的 `ObservableCollection`，不会产生持续分配。
 - 网络表读取占用的是后台线程；UI 只接收最终结果，不阻塞 1Hz 采集。
+
+## 8. 实施记录（2026-11-22）
+
+| 提交 | 内容 |
+|---|---|
+| `b49f3ab` | PortReader / PortModels：两段式 P/Invoke、边界校验、TCP/UDP、IPv4/IPv6 |
+| `dd7446c` | PortQueryState、RelayCommand、MainViewModel 查询命令与切行清理 |
+| `5ab5f5b` | 详情面板网络端口区域 |
+
+验证：
+
+- `--selftest`：69 passed, 0 failed（新增 `port state clears on selection change`）。
+- UIA：QQLive 查询到 9 / 80 个端口，TCP4/TCP6/UDP4 行均能展示；切到另一个进程后状态回到“未加载”、列表清空。
+- 查询期间 `IsBusy` 禁用按钮；`AccessDenied` 映射为“无权限读取”，不会弹全局异常。
+- 网络读取未进入 1Hz 采集路径，不影响 0.1MB/s 分配基线。
