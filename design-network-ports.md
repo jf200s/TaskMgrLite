@@ -1,5 +1,9 @@
 # 网络端口查询（按需）设计与核心代码
 
+> 已废止：该设计只服务旧详情面板的“单进程手动查询”。0.1.02 之后端口已改为
+> 左侧导航的独立全系统视图，`PortQueryState`、`QueryPortsCommand` 和 `Read(pid)`
+> 均已删除。当前实现见 `design-network-view.md`。
+
 ## 1. 边界与状态流
 
 只允许用户点击“查询端口”时读取网络表；不在 `ApplySnapshot`、`RebuildFromCurrentNodes` 或 `SelectedRow` 的自动路径里调用 `GetExtendedTcpTable` / `GetExtendedUdpTable`。

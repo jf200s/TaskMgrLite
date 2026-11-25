@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased]
+
+### 新增
+
+- 独立“网络端口”视图：左侧导航切换，全系统 TCP/UDP IPv4/IPv6 列表，2Hz 后台轮询。
+- 端口列表支持按协议、地址、状态、PID、进程名搜索，列头排序，完整虚拟化（Recycling）。
+- 端口帧按 `协议 + 本地端点 + 远程端点 + PID` 做 UI Diff；无变化时零 `CollectionChanged`。
+- 进程名通过当前进程快照做内存映射，不新增 `OpenProcess` / P/Invoke。
+
+### 变更
+
+- 删除进程详情底部的旧端口查询面板、`PortQueryState`、`QueryPortsCommand` 和 `PortReader.Read(pid)`。
+- `PortReader.ReadAll()` 成为唯一端口读取入口，稳定排序后直接供 UI Diff。
+- 切回“进程”立即停止端口轮询并释放端口行；进程列表集合保持驻留，不重建。
+
+### 验证
+
+- Release 构建：0 warning / 0 error。
+- `--selftest`：72 passed, 0 failed。
+- `--diag-round3` / `--diag-round4`：exit 0。
+- UIA：450 端口下仅生成 27 个行容器；PID 升降序、进程名搜索、切回进程后 492/492 行保持。
+
 ## [0.1.02] - 2026-11-22
 
 ### 新增
