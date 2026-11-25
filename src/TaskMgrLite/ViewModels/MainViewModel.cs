@@ -170,7 +170,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ListSortDirection SortDirection => _sort.Direction;
     public double SortArrowOpacity => IsTreeMode ? 0.3 : 1.0;
 
-    public NetworkViewModel Network => _network ??= new NetworkViewModel(_dispatcher, GetProcessNameMap);
+    public NetworkViewModel NetworkVM => _network ??= new NetworkViewModel(_dispatcher, GetProcessNameMap);
     public RelayCommand ShowProcessesCommand { get; }
     public RelayCommand ShowNetworkCommand { get; }
 
@@ -576,9 +576,9 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         _section = MainSection.Network;
 
         if (UseRealData)
-            Network.Activate();
+            NetworkVM.Activate();
         else
-            Network.ShowUnavailable("假数据模式不读取真实端口");
+            NetworkVM.ShowUnavailable("假数据模式不读取真实端口");
 
         OnPropertyChanged(nameof(IsProcessView));
         OnPropertyChanged(nameof(IsNetworkView));

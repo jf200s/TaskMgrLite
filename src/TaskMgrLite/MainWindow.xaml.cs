@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using TaskMgrLite.Core;
 using TaskMgrLite.Interop;
 using TaskMgrLite.ViewModels;
+using TaskMgrLite.Views;
 
 namespace TaskMgrLite;
 
@@ -29,7 +30,6 @@ public partial class MainWindow : Window
 
         // 表头在 GridView 里是模板生成的，直接挂路由事件比给每列写 EventSetter 稳
         ProcessList.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler(OnHeaderClick));
-        PortList.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler(OnPortHeaderClick));
 
         // 命令行懒加载的触发源：首屏、滚动、选中、过滤后容器重建
         ProcessList.Loaded += OnListLoaded;
@@ -114,7 +114,8 @@ public partial class MainWindow : Window
         if (e.OriginalSource is Thumb) return;
 
         GridViewColumnHeader? header = FindAncestor<GridViewColumnHeader>(e.OriginalSource as DependencyObject);
-        if (header?.Content is not FrameworkElement { Tag: string key }) return;
+        string? key = SortHeaderInfo.GetKey(header?.Content);
+        if (key is null) return;
         if (DataContext is not MainViewModel vm) return;
 
         // 命令行是懒加载的，排序结果不完整；列头已变暗，这里再给出明确反馈。
@@ -145,17 +146,6 @@ public partial class MainWindow : Window
             vm.ShowNetworkCommand.Execute(null);
         else
             vm.ShowProcessesCommand.Execute(null);
-    }
-
-    private void OnPortHeaderClick(object sender, RoutedEventArgs e)
-    {
-        // 点列宽拖拽手柄不排序
-        if (e.OriginalSource is Thumb) return;
-
-        GridViewColumnHeader? header = FindAncestor<GridViewColumnHeader>(e.OriginalSource as DependencyObject);
-        if (header?.Content is not FrameworkElement { Tag: string key }) return;
-        if (DataContext is MainViewModel vm)
-            vm.Network.ToggleSort(key);
     }
 
     private void OnExpanderClick(object sender, RoutedEventArgs e)

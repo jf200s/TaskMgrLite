@@ -1,5 +1,33 @@
 ﻿<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:conv="clr-namespace:TaskMgrLite.Converters">
+
+    <conv:SortArrowConverter x:Key="SortArrow" />
+
+    <!-- 进程/端口列表共用的排序列头：Key + 文本 + ▲/▼ -->
+    <DataTemplate x:Key="SortHeaderTemplate">
+        <StackPanel Orientation="Horizontal"
+                    Opacity="{Binding Opacity}"
+                    ToolTip="{Binding ToolTip}"
+                    AutomationProperties.Name="{Binding Text}">
+            <TextBlock Text="{Binding Text}" />
+            <TextBlock Margin="3,0,0,0"
+                       MinWidth="10"
+                       FontSize="10"
+                       TextAlignment="Center"
+                       VerticalAlignment="Center"
+                       Foreground="{DynamicResource Accent}"
+                       Opacity="{Binding DataContext.SortArrowOpacity, RelativeSource={RelativeSource AncestorType=ListView}, FallbackValue=1.0}">
+                <TextBlock.Text>
+                    <MultiBinding Converter="{StaticResource SortArrow}">
+                        <Binding Path="SortKey" />
+                        <Binding Path="DataContext.SortKey" RelativeSource="{RelativeSource AncestorType=ListView}" />
+                        <Binding Path="DataContext.SortDirection" RelativeSource="{RelativeSource AncestorType=ListView}" />
+                    </MultiBinding>
+                </TextBlock.Text>
+            </TextBlock>
+        </StackPanel>
+    </DataTemplate>
 
     <!-- ============ Palette ============ -->
     <SolidColorBrush x:Key="AppBackground" Color="#141417" />

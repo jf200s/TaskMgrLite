@@ -1,0 +1,134 @@
+<UserControl x:Class="TaskMgrLite.Views.NetworkView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:views="clr-namespace:TaskMgrLite.Views">
+
+    <!-- DataContext 由 MainWindow 以 NetworkVM 注入；这里不设置 DataContext。 -->
+    <DockPanel>
+    <Border DockPanel.Dock="Top"
+            Background="{StaticResource Surface}"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="14,10">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="280" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="网络端口"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       VerticalAlignment="Center"
+                       Margin="0,0,16,0" />
+
+            <TextBox Grid.Column="1"
+                     AutomationProperties.AutomationId="PortSearchBox"
+                     Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                     ToolTip="按进程名、PID 或端口过滤"
+                     VerticalAlignment="Center" />
+
+            <TextBlock Grid.Column="2"
+                       Text="{Binding CountText}"
+                       AutomationProperties.AutomationId="PortCount"
+                       Foreground="{StaticResource TextMuted}"
+                       VerticalAlignment="Center"
+                       Margin="16,0,0,0" />
+
+            <TextBlock Grid.Column="3"
+                       Text="{Binding StatusText}"
+                       AutomationProperties.AutomationId="PortStatus"
+                       Foreground="{StaticResource TextMuted}"
+                       VerticalAlignment="Center"
+                       Margin="16,0,0,0" />
+        </Grid>
+    </Border>
+
+    <ListView x:Name="PortList"
+              AutomationProperties.AutomationId="PortList"
+              ItemsSource="{Binding View}"
+              Margin="0,6,0,0"
+              SelectionMode="Single"
+              AlternationCount="2"
+              ScrollViewer.CanContentScroll="True"
+              VirtualizingPanel.IsVirtualizing="True"
+              VirtualizingPanel.VirtualizationMode="Recycling">
+        <ListView.View>
+            <GridView AllowsColumnReorder="True">
+                <GridViewColumn Width="80" HeaderTemplate="{StaticResource SortHeaderTemplate}">
+                    <GridViewColumn.Header>
+                                <views:SortHeaderInfo SortKey="Protocol" Text="协议" />
+                            </GridViewColumn.Header>
+                    <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding Protocol}" Margin="8,0,0,0" />
+                        </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                </GridViewColumn>
+
+                <GridViewColumn Width="250" HeaderTemplate="{StaticResource SortHeaderTemplate}">
+                    <GridViewColumn.Header>
+                                <views:SortHeaderInfo SortKey="LocalEndpoint" Text="本地地址" />
+                            </GridViewColumn.Header>
+                    <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding LocalEndpoint}" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                </GridViewColumn>
+
+                <GridViewColumn Width="250" HeaderTemplate="{StaticResource SortHeaderTemplate}">
+                    <GridViewColumn.Header>
+                                <views:SortHeaderInfo SortKey="RemoteEndpoint" Text="远程地址" />
+                            </GridViewColumn.Header>
+                    <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding RemoteEndpoint}" TextTrimming="CharacterEllipsis" />
+                        </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                </GridViewColumn>
+
+                <GridViewColumn Width="130" HeaderTemplate="{StaticResource SortHeaderTemplate}">
+                    <GridViewColumn.Header>
+                                <views:SortHeaderInfo SortKey="State" Text="状态" />
+                            </GridViewColumn.Header>
+                    <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding State}" />
+                        </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                </GridViewColumn>
+
+                <GridViewColumn Width="80" HeaderTemplate="{StaticResource SortHeaderTemplate}">
+                    <GridViewColumn.Header>
+                                <views:SortHeaderInfo SortKey="Pid" Text="PID" />
+                            </GridViewColumn.Header>
+                    <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding PidDisplay}"
+                                       HorizontalAlignment="Right"
+                                       Margin="0,0,10,0" />
+                        </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                </GridViewColumn>
+
+                <GridViewColumn Width="220" HeaderTemplate="{StaticResource SortHeaderTemplate}">
+                    <GridViewColumn.Header>
+                                <views:SortHeaderInfo SortKey="ProcessName" Text="进程名" />
+                            </GridViewColumn.Header>
+                    <GridViewColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding ProcessName}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding ProcessName}" />
+                        </DataTemplate>
+                    </GridViewColumn.CellTemplate>
+                </GridViewColumn>
+            </GridView>
+        </ListView.View>
+    </ListView>
+    </DockPanel>
+</UserControl>
