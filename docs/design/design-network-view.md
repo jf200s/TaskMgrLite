@@ -180,13 +180,13 @@ public MainSection Section => _section;
 public bool IsProcessView => _section == MainSection.Processes;
 public bool IsNetworkView => _section == MainSection.Network;
 
-public NetworkViewModel Network { get; } // 构造时注入 Dispatcher 和 GetProcessNameMap
+public NetworkViewModel NetworkVM { get; } // 构造时注入 Dispatcher 和 GetProcessNameMap
 
 public void ShowProcesses()
 {
     if (_section == MainSection.Processes) return;
     _section = MainSection.Processes;
-    Network.Deactivate();
+    NetworkVM.Deactivate();
     NotifySectionChanged();
 }
 
@@ -197,13 +197,13 @@ public void ShowNetwork()
     NotifySectionChanged();
 
     if (UseRealData)
-        Network.Activate();
+        NetworkVM.Activate();
     else
-        Network.Deactivate();   // 假数据模式不读真实端口，状态栏显示“假数据模式不支持端口”
+        NetworkVM.Deactivate();   // 假数据模式不读真实端口，状态栏显示“假数据模式不支持端口”
 }
 ```
 
-`Dispose` 里调用 `Network.Dispose()`。
+`Dispose` 里调用 `NetworkVM.Dispose()`。
 
 ### XAML 骨架
 
@@ -300,11 +300,29 @@ public void ShowNetwork()
 
 ## 7. 风险与待实测
 
-- **2Hz 全表分配未实测**。每帧会为端点和地址创建字符串；这是当前实现的主要成本。
-  阶段 B 构建通过后需要跑 `--stats` 或独立长跑，记录分配速率和 UI 帧时间，不能凭估算。
-- **读取变慢时刷新率自动下降**。这是单飞设计的预期行为；需要确认不会拖慢 UI。
+- **2Hz 全表分配已做短时采样，但还不是长跑结论**。27–39 秒采样里进程分配均值
+  0.5–0.6MB/s；仍需 10 分钟长跑确认是否收敛。每帧仍会为端点和地址创建字符串。
+- **读取变慢时刷新率自动下降**。这是单飞设计的预期行为；短时采样未观察到堆积。
 - **端口表只有 PID**。PID 复用窗口内，进程名可能对应到新进程；不伪造创建时间。
 - **重复 Key**。SO_REUSEADDR 的重复 UDP 绑定会被合并；需要时再加 occurrence。
-- **旧 `Read(pid)` 会枚举全表再过滤**。只在阶段 D 之前存在，旧面板删除时一并移除。
 - **权限**：四张表分别失败会汇总为 `Partial`；全部无结果且拒绝访问显示“无权限读取”。
   UDP 远程/状态继续显示“—”。
+
+## 8. 结构解耦结果（2026-11-26）
+
+- `SelfTest` 改为 `partial`，拆成 `SelfTest.cs`（入口）、`SelfTest.Core.cs`（通用/工具）、
+  `SelfTest.Tree.cs`、`SelfTest.Snapshot.cs`、`SelfTest.Ports.cs`；72/72。
+- 网络端口视图抽到 `Views/NetworkView.xaml`，MainWindow 只保留
+  `<views:NetworkView DataContext="{Binding NetworkVM}" />`，不在 code-behind 设 DataContext。
+- 排序列头统一为 `Themes/Dark.xaml` 的 `SortHeaderTemplate` + `Views/SortHeaderInfo`；
+  进程和端口列表共用同一个模板，列头只保留 Key/Text/可选 ToolTip。
+- 实测（本机 2026-11-26）：
+  - 构建 0 warning / 0 error；selftest 72/0；`--diag-round3/4` exit 0。
+  - UIA：342 端口 realized 27；PID 升降序、`svchost` 搜索（42/339）、切回进程后进程集合非空。
+  - 进程列头 PID 降序/升序 UIA 均通过。
+  - 热启动 5 次：当前版中位 1877ms；同机 0.1.02 基线中位 1797ms（当天环境整体偏高，
+    历史 813ms 未复现，不能把差值直接归因于 XAML）。
+  - `[enum]`：当前版 40 次采样均值 1.9KB、max 74KB；基线 26 次均值 2.8KB、max 74KB，
+    未见 XAML 重构导致分配升高。
+  - 网络视图 CPU 0.69s → 0.48s /10s 两段；专用工作集约 61.5–68.5MB，Gen2=0。
+
