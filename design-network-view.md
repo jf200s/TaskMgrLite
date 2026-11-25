@@ -8,8 +8,8 @@
   `NetworkPortListSync`、左侧导航、视图切换、端口列表 XAML、旧端口面板清理。
 - `PortQueryState`、`QueryPortsCommand`、`PortReader.Read(pid)` 已删除。
 - 实测：Release 0 warning / 0 error；`--selftest` 72 passed / 0 failed；
-  `--diag-round3/4` exit 0；UIA 420 端口仅 27 个行容器，PID 升降序、搜索、
-  切回进程后进程行数保持。
+  `--diag-round3/4` exit 0；UIA 多次采样 352–450 端口时均只有 27 个行容器，
+  PID 升降序、进程名搜索（40/352）、切回进程后进程行数保持（504/504）。
 - 截图：`artifacts/c-ui-process.png`、`artifacts/c-ui-network.png`。
 
 ---
