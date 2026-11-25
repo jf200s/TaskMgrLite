@@ -10,6 +10,7 @@ dist/
 # 运行时日志与测量产物
 logs/
 *.log
+run.log
 artifacts/
 
 # Visual Studio / Rider

@@ -1,51 +1,25 @@
 # 下一轮候选清单（Backlog）
 
-本文把散落在各轮设计文档里的待定项集中成可执行清单。优先级是建议，不是排期；每项都给出当前行为、需要做的决定、可选方案和验收口径。
+本文只保留仍未完成、需要决策或压测的项。已完成项在 2026-11-26 从候选中移除：
 
-来源：`design-round2.md` §11、`design-round3.md` §6、`design-round4.md` §8、`design-refactor.md`「已知剩余」、`README.md`「已知限制」。
+- 折叠导致选中行消失时的选中态归属：Round 5 已完成（迁移到被折叠节点）。
+- 提权重启保留搜索、折叠、视图模式和列排序：0.1.01 已完成。
+- 命令行失败负缓存 30 秒 TTL：0.1.01 已完成。
+- 端口从详情面板手动查询改为独立 2Hz 视图：2026-11-25 已完成。
 
 ## 总览
 
 | # | 待办 | 来源 | 类型 | 建议顺序 |
 |---|---|---|---|---|
-| 1 | 折叠导致选中行消失时的选中态归属 | round2 §11.1 | 交互决策 | 2 |
-| 2 | 兄弟节点稳定顺序 | round2 §11.2 | 观测后决策 | 5 |
-| 3 | 5000+ 进程时 `VisibleListSync` 最坏 O(n²) | round2 §11.3 | 性能重构 | 6（先压测） |
-| 4 | 键盘导航与 UIA 语义 | round2 §11.4 | 可访问性 | 4 |
-| 5 | 提权重启保留搜索和折叠状态 | round3 §6.1 | 状态持久化 | 3 |
-| 6 | 命令行负缓存只能靠 LRU 淘汰 | round3 §6.2 | 缓存策略 | 1 |
+| 1 | 兄弟节点稳定顺序 | `docs/design/archive/design-round2.md` §11.2 | 观测后决策 | 3 |
+| 2 | 键盘导航与 UIA 语义 | `docs/design/archive/design-round2.md` §11.4 | 可访问性 | 2 |
+| 3 | 5000+ 进程时 `VisibleListSync` 最坏 O(n²) | `docs/design/archive/design-round2.md` §11.3 | 性能重构 | 1（先压测） |
 
-建议顺序的理由：6 和 5 直接影响权限受限场景，用户可感知，改动小；1 是高频交互的一致性；4 成本中等但独立；2 应先确认目标机是否真的抖动；3 应先有 5000 行基准，不提前重构。
+建议顺序的理由：先给 5000 行/5000 端口做真实基准，确认 `VisibleListSync` 和 2Hz 端口 Diff 的 p99；键盘/UIA 独立、成本中等；兄弟顺序先加观测，不提前稳定排序。
 
 ---
 
-## 1. 折叠导致选中行消失时的选中态归属
-
-**现状**
-
-`Rows` 只保存当前可见行；折叠会把整棵子树从 `Rows` 移除。`ListView.SelectedItem` 是 TwoWay 绑定，被移除的选中项会让 `SelectedRow` 变成 `null`，详情面板随之清空。`ApplySnapshot` 只在进程死亡时显式清空选中，折叠路径没有专门处理。
-
-**需要决定**
-
-折叠的是当前选中行的祖先时，选中态应该：
-
-- 落到被折叠的父节点（推荐：操作对象还在，详情不至于凭空消失）；
-- 直接清空（实现最简单，但用户会觉得自己“被踢出了列表”）；
-- 保留隐藏选中（详情仍显示，但列表没有高亮，容易误解为选中已丢失）。
-
-同时要区分“用户点折叠按钮”和“程序化折叠/刷新导致的不可见”，只有前者应该触发选中迁移。
-
-**验收**
-
-- 选中子进程 → 折叠其父 → 选中落到父进程，详情同步更新。
-- 选中 A 分支 → 折叠 B 分支 → 选中不变。
-- 进程死亡仍清空选中，不误迁移到父进程。
-- 不破坏 ListView 虚拟化与 1Hz diff；自检覆盖上述三种场景。
-- 工作量：S。
-
----
-
-## 2. 兄弟节点稳定顺序
+## 1. 兄弟节点稳定顺序
 
 **现状**
 
@@ -68,38 +42,17 @@
 
 ---
 
-## 3. 5000+ 进程时 `VisibleListSync` 最坏 O(n²)
+## 2. 键盘导航与 UIA 语义
 
 **现状**
 
-`Core/TreeModel.cs` 的 `VisibleListSync.Apply` 先删除不在 desired 里的行，再对每个 desired key 从当前位置向后线性查找。完全逆序时是 O(n²)。数量差超过 32 才走 `BulkObservableCollection.ReplaceAll`；等量或近似等量的重排仍逐条 `RemoveAt`/`Insert`，每次都会触发 `CollectionChanged`。
-
-当前 440–500 进程的真实长跑没有暴露这个问题，但 5000+ 全展开、同一帧内大范围折叠/展开时可能卡帧。
-
-**需要决定**
-
-- 先把 5000 行合成基准做出来，测 `Apply` 的 p50/p99 和 `CollectionChanged` 次数，再决定是否重构。
-- 如果超预算，方案包括：key→index 字典 + 最长递增子序列做最小移动；对等量大规模重排也走一次 Reset；或引入分片集合。
-
-**验收**
-
-- 5000 行、随机 1%/s 增删、树/平铺切换、批量折叠下，单次 `Apply` p99 < 16ms（或先锁定一个可接受预算），无 >100ms 卡顿。
-- 分配率仍不破 0.1MB/s 量级。
-- 自检加入 5000 行合成用例，覆盖顺序正确性与 Reset 次数。
-- 工作量：M–L。
-
----
-
-## 4. 键盘导航与 UIA 语义
-
-**现状**
-
-扁平 ListView 只有默认上下键；没有左右键展开/折叠、Home/End、type-ahead。展开按钮是普通 `Button`，没有 TreeView 的层级与展开状态语义。
+扁平 ListView 只有默认上下键；树形已有 Left/Right 折叠/展开，但仍缺 Home/End、type-ahead 和完整的 UIA 层级语义。端口视图目前只做了列头点击排序，没有键盘排序入口。
 
 **可选方案**
 
-- `PreviewKeyDown` 处理 Left/Right（折叠/展开或移动到父/首个子节点）、Enter/Space、Home/End、字母跳转。
-- 为行补 `AutomationPeer`，或设置 `AutomationProperties`，让 UIA 能读到名称、层级和展开/折叠状态。
+- 补 Home/End、Enter/Space、字母跳转；端口视图补 Enter 查看详情或复制。
+- 为进程行补 `AutomationPeer` 或 `AutomationProperties`，让 UIA 能读到名称、层级和展开/折叠状态。
+- 端口列头的自定义 `StackPanel` 目前 UIA Name 为空，需要补可访问名称或改用可聚合的 Header 模板。
 - 不要求引入 WPF TreeView，继续保持扁平列表与虚拟化。
 
 **注意事项**
@@ -111,58 +64,32 @@
 - 纯键盘完成选择、展开/折叠、打开右键菜单。
 - UIA 客户端能读到 Name、Level、ExpandCollapseState。
 - 500 行 + UIA 附加仍低于 80MB。
-- 现有 `test-context-menu.ps1` 扩展出键盘/UIA 用例。
+- `scripts/test-context-menu.ps1` 和 `scripts/test-network-view.ps1` 扩展出键盘/UIA 用例。
 - 工作量：M。
 
 ---
 
-## 5. 提权重启保留搜索和折叠状态
+## 3. 5000+ 进程时 `VisibleListSync` 最坏 O(n²)
 
 **现状**
 
-`Core/ElevationHelper.cs` 的 `TryRestartElevated` 只重建命令行参数；搜索词、折叠集合、树/平铺模式、滚动位置和选中行都会丢失，提权后回到默认视图。
+`Core/TreeModel.cs` 的 `VisibleListSync.Apply` 先删除不在 desired 里的行，再对每个 desired key 从当前位置向后线性查找。完全逆序时是 O(n²)。数量差超过 32 才走 `BulkObservableCollection.ReplaceAll`；等量或近似等量的重排仍逐条 `RemoveAt`/`Insert`，每次都会触发 `CollectionChanged`。
 
-**可选方案**
+当前 440–500 进程的真实长跑没有暴露这个问题，但 5000+ 全展开、同一帧内大范围折叠/展开时可能卡帧。端口视图的 `NetworkPortListSync` 同样需要 5000 端口基准，确认 Move 次数和字符串分配。
 
-启动时把 UI 状态写一份临时 JSON（版本号、时间戳、搜索词、折叠的 `ProcKey` 列表、视图模式），`runas` 后的新进程读取并删除；过期、版本不符或解析失败时静默忽略。折叠项按 `ProcKey` 恢复，已退出的进程自动丢弃。
+**需要决定**
 
-**边界**
-
-- 状态文件放在 `%TEMP%\TaskMgrLite\`，限制大小与字段长度。
-- 不写路径、用户名等敏感信息。
-- 多实例用 PID 命名状态文件，避免互相覆盖。
+- 先把 5000 行合成基准做出来，测 `Apply` 的 p50/p99 和 `CollectionChanged` 次数，再决定是否重构。
+- 如果超预算，方案包括：key→index 字典 + 最长递增子序列做最小移动；对等量大规模重排也走一次 Reset；或引入分片集合。
+- 端口视图单独记录 2Hz 下的分配速率和 UI 帧时间，确认是否需要缓存端点字符串。
 
 **验收**
 
-- 提权后搜索词、折叠集合、视图模式恢复。
-- 损坏或过期文件不影响启动。
-- 多实例不串状态。
-- 自检覆盖序列化、恢复和过期丢弃。
-- 工作量：S–M。
-
----
-
-## 6. 命令行负缓存只能靠 LRU 淘汰
-
-**现状**
-
-`Core/CommandLineService.cs` 的 LRU 512 同时缓存成功和失败；失败结果没有 TTL，只有进程退出 `Forget` 或 LRU 淘汰才会重试。`ProcessDetailsService` 结构相同，也值得一起处理。
-
-结果是：普通权限启动后读不到命令行，提权或权限变化后必须重启或等缓存淘汰，用户没有手动重试入口。
-
-**可选方案**
-
-- 失败项加短 TTL + 退避；区分 `AccessDenied` / `Exited` / `Error`，只对 `AccessDenied` 做 TTL。
-- 详情面板或右键菜单增加“重试读取”；提权后清空负缓存。
-- 保持“只在选中/可视行触发”，不做每秒全量重试。
-
-**验收**
-
-- 提权后无需重启即可读到命令行。
-- 失败重试有节流，不出现每秒 300 次 `OpenProcess`。
-- 采集热路径零额外 `OpenProcess`。
-- 自检覆盖 TTL、负缓存和 `Forget`。
-- 工作量：S。
+- 5000 行、随机 1%/s 增删、树/平铺切换、批量折叠下，单次 `Apply` p99 < 16ms（或先锁定一个可接受预算），无 >100ms 卡顿。
+- 5000 端口、2Hz 下端口 Diff 不产生持续 `CollectionChanged`，UI 帧时间可接受。
+- 分配率仍不破 0.1MB/s 量级（端口视图单独口径）。
+- 自检加入 5000 行合成用例，覆盖顺序正确性与 Reset 次数。
+- 工作量：M–L。
 
 ---
 
@@ -170,20 +97,22 @@
 
 | 项 | 来源 | 说明 |
 |---|---|---|
-| 树杀只覆盖点击时快照 | round3 §6.3 / README | 点击后新出生的后代不在本轮计划内；可考虑“再次结束树”或二次确认 |
-| Toast 8 秒自动隐藏 | round3 §6.4 | 失败详情需用户手动点开，不主动打断 |
-| 搜索是 150ms 防抖 + `View.Refresh()` | round3 §6.5 | 每次刷新遍历当前行，500 行可接受；万级进程需要增量索引 |
-| 专用工作集 61→70.8MB 漂移 | refactor 已知剩余 | 125 秒内仍低于 80MB，需要更长时间观察是否收敛 |
-| 800ms 启动目标未达成 | refactor / README | 当前中位 807.5ms，不为 7.5ms 做未经验证的裁剪 |
-| 强杀时可能丢日志尾部 | refactor 已知剩余 | 正常关闭和致命异常会 `Flush` |
+| 树杀只覆盖点击时快照 | `docs/design/archive/design-round3.md` §6.3 / README | 点击后新出生的后代不在本轮计划内；可考虑“再次结束树”或二次确认 |
+| Toast 8 秒自动隐藏 | `docs/design/archive/design-round3.md` §6.4 | 失败详情需用户手动点开，不主动打断 |
+| 搜索是 150ms 防抖 + `View.Refresh()` | `docs/design/archive/design-round3.md` §6.5 | 每次刷新遍历当前行，500 行可接受；万级进程需要增量索引 |
+| 专用工作集 61→70.8MB 漂移 | `docs/design/design-refactor.md` 已知剩余 | 125 秒内仍低于 80MB，需要更长时间观察是否收敛 |
+| 800ms 启动目标未达成 | `docs/design/design-refactor.md` / README | 当前中位 813ms，不为 13ms 做未经验证的裁剪 |
+| 强杀时可能丢日志尾部 | `docs/design/design-refactor.md` 已知剩余 | 正常关闭和致命异常会 `Flush` |
 | 发布包 137MB、无安装器、未签名 | README | 自包含运行时换冷启动；首次运行可能触发 SmartScreen |
-| PPL/系统进程即使提权也可能读不到、杀不掉 | README / round4 | 属系统保护，不承诺绕过 |
-| Mica 90% 暗色罩层偏弱 | round4 §8 | 调低 alpha 需重新做文字对比度验收 |
-| UIA 附加抬高辅助功能内存 | round4 §8 | 63.6MB 上限仍低于 80MB，做键盘/UIA 时复测 |
-| 右键菜单 UI 测试会移动鼠标、覆盖剪贴板 | round4 §8 | 测试脚本会恢复，但运行期间不要操作桌面 |
+| PPL/系统进程即使提权也可能读不到、杀不掉 | README / `docs/design/archive/design-round4.md` | 属系统保护，不承诺绕过 |
+| Mica 90% 暗色罩层偏弱 | `docs/design/archive/design-round4.md` §8 | 调低 alpha 需重新做文字对比度验收 |
+| UIA 附加抬高辅助功能内存 | `docs/design/archive/design-round4.md` §8 | 63.6MB 上限仍低于 80MB，做键盘/UIA 时复测 |
+| 右键菜单 UI 测试会移动鼠标、覆盖剪贴板 | `docs/design/archive/design-round4.md` §8 | 测试脚本会恢复，但运行期间不要操作桌面 |
+| 端口表只有 PID | `docs/design/design-network-view.md` | PID 复用期间进程名可能短暂错位；重复 UDP 四元组会被合并 |
+| 端口视图 2Hz 分配未长跑 | `docs/design/design-network-view.md` | 352–450 端口已验虚拟化，需补 10 分钟长跑和 5000 端口基准 |
 
 ## 建议的下一轮切法
 
-- 只做一件：先做 6（负缓存 TTL + 手动重试），改动小，直接改善权限受限场景。
-- 做一组“交互一致性”：1 + 5，都是用户可感知的小改动。
-- 3 先压测再决定是否重构；2 先加观测；4 适合单独一轮，避免和性能改动混在一起。
+- 先做 3 的基准：5000 行进程 + 5000 端口，测 `VisibleListSync` / `NetworkPortListSync` p99 和 2Hz 分配。
+- 基准通过后做 2（键盘/UIA），同时补进程列头和端口列头的 UIA Name。
+- 1 先加观测计数，等目标机确认抖动再决定稳定排序。
