@@ -4,8 +4,10 @@ using System.Runtime.InteropServices;
 namespace TaskMgrLite.Core;
 
 /// <summary>
-/// 按 PID 读取 TCP/UDP 端口。只在用户点击“查询端口”时调用，
-/// 不进入 1Hz 采集、快照应用或选中行自动路径。
+/// 读取 TCP/UDP 的 IPv4 / IPv6 四张 owner-PID 表。
+///
+/// 只有 ReadAll()：全系统端口，供独立的网络端口视图按需轮询。
+/// 这里不会在任何 1Hz 进程采集路径上被调用。
 /// </summary>
 public static class PortReader
 {
@@ -46,23 +48,37 @@ public static class PortReader
         int tableClass,
         uint reserved);
 
-    public static PortQueryResult Read(uint pid)
+    /// <summary>
+    /// 读取全系统所有 TCP/UDP IPv4/IPv6 端口。
+    /// 结果按 协议 → 本地端点 → 远程端点 → PID 排序，保证同一组端口在
+    /// 多次采样间顺序稳定，让 UI Diff 只处理真正的增删。
+    /// </summary>
+    public static PortQueryResult ReadAll() => ReadCore();
+
+    private static PortQueryResult ReadCore()
     {
-        var entries = new List<PortEntry>(8);
+        var entries = new List<PortEntry>(2048);
         bool denied = false;
         bool error = false;
 
-        ReadOne(tcp: true, AfInet, pid, entries, ref denied, ref error);
-        ReadOne(tcp: true, AfInet6, pid, entries, ref denied, ref error);
-        ReadOne(tcp: false, AfInet, pid, entries, ref denied, ref error);
-        ReadOne(tcp: false, AfInet6, pid, entries, ref denied, ref error);
+        ReadOne(tcp: true, AfInet, entries, ref denied, ref error);
+        ReadOne(tcp: true, AfInet6, entries, ref denied, ref error);
+        ReadOne(tcp: false, AfInet, entries, ref denied, ref error);
+        ReadOne(tcp: false, AfInet6, entries, ref denied, ref error);
 
+        // 稳定顺序：Diff 只关心协议/端点/PID，排序键也保持一致。
         entries.Sort(static (a, b) =>
         {
             int byProtocol = string.CompareOrdinal(a.Protocol, b.Protocol);
-            return byProtocol != 0
-                ? byProtocol
-                : string.CompareOrdinal(a.LocalEndpoint, b.LocalEndpoint);
+            if (byProtocol != 0) return byProtocol;
+
+            int byLocal = string.CompareOrdinal(a.LocalEndpoint, b.LocalEndpoint);
+            if (byLocal != 0) return byLocal;
+
+            int byRemote = string.CompareOrdinal(a.RemoteEndpoint, b.RemoteEndpoint);
+            if (byRemote != 0) return byRemote;
+
+            return a.Pid.CompareTo(b.Pid);
         });
 
         PortEntry[] result = entries.ToArray();
@@ -80,14 +96,13 @@ public static class PortReader
     private static void ReadOne(
         bool tcp,
         int family,
-        uint pid,
         List<PortEntry> output,
         ref bool denied,
         ref bool error)
     {
         try
         {
-            TableResult table = ReadTable(tcp, family, pid);
+            TableResult table = ReadTable(tcp, family);
             if (table.Entries.Length > 0)
                 output.AddRange(table.Entries);
 
@@ -103,7 +118,7 @@ public static class PortReader
         }
     }
 
-    private static TableResult ReadTable(bool tcp, int family, uint pid)
+    private static TableResult ReadTable(bool tcp, int family)
     {
         int size = 0;
         uint code = Call(tcp, IntPtr.Zero, ref size, family);
@@ -137,7 +152,7 @@ public static class PortReader
                 if (code != NoError)
                     return FromError(code);
 
-                return Parse(buffer, actual, tcp, family, pid);
+                return Parse(buffer, actual, tcp, family);
             }
             finally
             {
@@ -164,7 +179,11 @@ public static class PortReader
         return new TableResult(Array.Empty<PortEntry>(), status);
     }
 
-    private static TableResult Parse(IntPtr buffer, int size, bool tcp, int family, uint pid)
+    private static TableResult Parse(
+        IntPtr buffer,
+        int size,
+        bool tcp,
+        int family)
     {
         if (size < 4)
             return new TableResult(Array.Empty<PortEntry>(), PortQueryStatus.Error);
@@ -179,7 +198,9 @@ public static class PortReader
         if (count > (uint)maxRows)
             return new TableResult(Array.Empty<PortEntry>(), PortQueryStatus.Error);
 
-        var entries = new List<PortEntry>(8);
+        // 全表模式下条目可能上千，先按表大小估个容量，减少 List 扩容。
+        int capacity = (int)Math.Min((long)count, 8192L);
+        var entries = new List<PortEntry>(capacity);
 
         for (uint i = 0; i < count; i++)
         {
@@ -187,16 +208,11 @@ public static class PortReader
             if (offset < 4 || offset + rowSize > size)
                 return new TableResult(Array.Empty<PortEntry>(), PortQueryStatus.Error);
 
-            uint ownerPid = tcp
-                ? (uint)Marshal.ReadInt32(buffer, offset + (ipv6 ? 52 : 20))
-                : (uint)Marshal.ReadInt32(buffer, offset + (ipv6 ? 24 : 8));
-
-            if (ownerPid != pid)
-                continue;
+            uint ownerPid = ReadOwnerPid(buffer, offset, tcp, ipv6);
 
             entries.Add(tcp
-                ? ReadTcpRow(buffer, offset, ipv6)
-                : ReadUdpRow(buffer, offset, ipv6));
+                ? ReadTcpRow(buffer, offset, ipv6, ownerPid)
+                : ReadUdpRow(buffer, offset, ipv6, ownerPid));
         }
 
         return new TableResult(
@@ -204,7 +220,14 @@ public static class PortReader
             entries.Count > 0 ? PortQueryStatus.Ok : PortQueryStatus.NoData);
     }
 
-    private static PortEntry ReadTcpRow(IntPtr buffer, int offset, bool ipv6)
+    private static uint ReadOwnerPid(IntPtr buffer, int offset, bool tcp, bool ipv6)
+    {
+        return tcp
+            ? (uint)Marshal.ReadInt32(buffer, offset + (ipv6 ? 52 : 20))
+            : (uint)Marshal.ReadInt32(buffer, offset + (ipv6 ? 24 : 8));
+    }
+
+    private static PortEntry ReadTcpRow(IntPtr buffer, int offset, bool ipv6, uint pid)
     {
         if (!ipv6)
         {
@@ -218,7 +241,10 @@ public static class PortReader
                 "TCP4",
                 FormatEndpoint(local, localPort, ipv6: false),
                 FormatEndpoint(remote, remotePort, ipv6: false),
-                TcpState(state));
+                TcpState(state),
+                pid,
+                localPort,
+                remotePort);
         }
 
         uint localScope = (uint)Marshal.ReadInt32(buffer, offset + 16);
@@ -233,10 +259,13 @@ public static class PortReader
             "TCP6",
             FormatEndpoint(local6, localPort6, ipv6: true),
             FormatEndpoint(remote6, remotePort6, ipv6: true),
-            TcpState(state6));
+            TcpState(state6),
+            pid,
+            localPort6,
+            remotePort6);
     }
 
-    private static PortEntry ReadUdpRow(IntPtr buffer, int offset, bool ipv6)
+    private static PortEntry ReadUdpRow(IntPtr buffer, int offset, bool ipv6, uint pid)
     {
         if (!ipv6)
         {
@@ -246,7 +275,10 @@ public static class PortReader
                 "UDP4",
                 FormatEndpoint(local, localPort, ipv6: false),
                 "—",
-                "—");
+                "—",
+                pid,
+                localPort,
+                0);
         }
 
         uint scope = (uint)Marshal.ReadInt32(buffer, offset + 16);
@@ -256,7 +288,10 @@ public static class PortReader
             "UDP6",
             FormatEndpoint(local6, localPort6, ipv6: true),
             "—",
-            "—");
+            "—",
+            pid,
+            localPort6,
+            0);
     }
 
     private static ushort ReadPort(IntPtr buffer, int offset)

@@ -29,6 +29,7 @@ public partial class MainWindow : Window
 
         // 表头在 GridView 里是模板生成的，直接挂路由事件比给每列写 EventSetter 稳
         ProcessList.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler(OnHeaderClick));
+        PortList.AddHandler(GridViewColumnHeader.ClickEvent, new RoutedEventHandler(OnPortHeaderClick));
 
         // 命令行懒加载的触发源：首屏、滚动、选中、过滤后容器重建
         ProcessList.Loaded += OnListLoaded;
@@ -126,6 +127,35 @@ public partial class MainWindow : Window
         // 方向判定问 VM：排序状态是 VM 的唯一事实，窗口不再自己记一份，
         // 否则切树形挂起排序后这里会算错方向。
         vm.ToggleSort(key);
+    }
+
+    /// <summary>
+    /// UIA 的 SelectionItemPattern 不会走 Button.Click，但会改变 IsChecked。
+    /// 命令负责真实点击，Checked 负责键盘/UIA 切换；两边都幂等。
+    /// </summary>
+    private void OnNavChecked(object sender, RoutedEventArgs e)
+    {
+        if (sender is not RadioButton { Tag: string section })
+            return;
+
+        if (DataContext is not MainViewModel vm)
+            return;
+
+        if (section == "Network")
+            vm.ShowNetworkCommand.Execute(null);
+        else
+            vm.ShowProcessesCommand.Execute(null);
+    }
+
+    private void OnPortHeaderClick(object sender, RoutedEventArgs e)
+    {
+        // 点列宽拖拽手柄不排序
+        if (e.OriginalSource is Thumb) return;
+
+        GridViewColumnHeader? header = FindAncestor<GridViewColumnHeader>(e.OriginalSource as DependencyObject);
+        if (header?.Content is not FrameworkElement { Tag: string key }) return;
+        if (DataContext is MainViewModel vm)
+            vm.Network.ToggleSort(key);
     }
 
     private void OnExpanderClick(object sender, RoutedEventArgs e)

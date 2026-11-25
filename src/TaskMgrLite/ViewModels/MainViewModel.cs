@@ -8,6 +8,12 @@ using TaskMgrLite.Core;
 
 namespace TaskMgrLite.ViewModels;
 
+public enum MainSection
+{
+    Processes,
+    Network
+}
+
 public sealed class MainViewModel : ObservableObject, IDisposable
 {
     private static readonly string[] FakeNames =
@@ -56,8 +62,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     // ---- Round 3：命令行懒加载 + 进程结束 ----
     private readonly CommandLineService _commandLines;
     private readonly ProcessDetailsService _details;
-    private readonly PortQueryState _portState = new();
-    private CancellationTokenSource? _portCts;
     private readonly List<ProcKey> _killPlan = new(1024);
     private ProcessRowViewModel? _selectedRow;
     private bool _disposed;
@@ -69,6 +73,13 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     private readonly Func<ProcKey, ProcessRowViewModel> _resolveRow;
 
     private ProcessViewMode _viewMode = ProcessViewMode.Tree;
+
+    // 顶层视图：进程 / 网络端口。切换只影响可见性和端口轮询，不动进程集合。
+    private MainSection _section = MainSection.Processes;
+    private NetworkViewModel? _network;
+    private IReadOnlyDictionary<uint, string>? _processNames;
+    private long _processNamesSequence = -1;
+    private long _lastProcessSequence;
 
     // 列排序状态。属于视图层但不属于某个模式：切到树形时临时挂起（树序必须保持父子相邻），
     // 切回平铺时原样恢复。挂在 VM 上，模式切换和提权恢复共用同一份事实。
@@ -124,12 +135,8 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             isAlive: k => _rowsByKey.ContainsKey(k),
             onResolved: OnDetailsResolved);
 
-        QueryPortsCommand = new RelayCommand(
-            () => _ = QueryPortsAsync(),
-            () => CanQueryPorts);
-
-        _portState.PropertyChanged += (_, _) =>
-            QueryPortsCommand.RaiseCanExecuteChanged();
+        ShowProcessesCommand = new RelayCommand(ShowProcesses);
+        ShowNetworkCommand = new RelayCommand(ShowNetwork);
 
         _fakeTick = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -163,11 +170,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
     public ListSortDirection SortDirection => _sort.Direction;
     public double SortArrowOpacity => IsTreeMode ? 0.3 : 1.0;
 
-    public PortQueryState PortState => _portState;
-    public RelayCommand QueryPortsCommand { get; }
+    public NetworkViewModel Network => _network ??= new NetworkViewModel(_dispatcher, GetProcessNameMap);
+    public RelayCommand ShowProcessesCommand { get; }
+    public RelayCommand ShowNetworkCommand { get; }
 
-    public bool CanQueryPorts =>
-        !_disposed && UseRealData && _selectedRow is not null && !_portState.IsBusy;
+    public bool IsProcessView => _section == MainSection.Processes;
+    public bool IsNetworkView => _section == MainSection.Network;
 
     public ProcessRowViewModel? SelectedRow
     {
@@ -175,9 +183,6 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         set
         {
             if (!Set(ref _selectedRow, value)) return;
-
-            // 切换选中行：取消查询、清空端口列表/状态/缓存，并使在途结果失效。
-            ResetPortState(value?.KeyStruct);
 
             OnPropertyChanged(nameof(HasSelection));
 
@@ -348,6 +353,12 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _nodes[i] = new NodeRef(key, s.ParentPid);
         }
         _nodeCount = count;
+        _lastProcessSequence = snapshot.Sequence;
+
+        // 端口视图可见时，从这一帧不可变快照直接构建 PID → 名称映射。
+        // 只在 1Hz 快照应用时做一次；2Hz 端口帧复用同一份字典。
+        if (IsNetworkView)
+            RebuildProcessNameMap(snapshot);
 
         // 1) 已退出（含 PID 复用的旧 key）
         _deadKeys.Clear();
@@ -545,51 +556,64 @@ public sealed class MainViewModel : ObservableObject, IDisposable
             _sort.Direction);
     }
 
-    private void ResetPortState(ProcKey? key)
+    private void ShowProcesses()
     {
-        _portCts?.Cancel();
-        _portCts = null;
-
-        _portState.Reset(key);
-        QueryPortsCommand.RaiseCanExecuteChanged();
-    }
-
-    private async Task QueryPortsAsync()
-    {
-        if (!CanQueryPorts || _selectedRow is not ProcessRowViewModel row)
+        if (_section == MainSection.Processes)
             return;
 
-        ProcKey key = row.KeyStruct;
+        _section = MainSection.Processes;
+        _network?.Deactivate();
 
-        _portCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _portCts = cts;
+        OnPropertyChanged(nameof(IsProcessView));
+        OnPropertyChanged(nameof(IsNetworkView));
+    }
 
-        int version = _portState.Begin();
+    private void ShowNetwork()
+    {
+        if (_section == MainSection.Network)
+            return;
 
-        try
-        {
-            PortQueryResult result = await Task.Run(
-                () => PortReader.Read(key.Pid), cts.Token);
+        _section = MainSection.Network;
 
-            // Apply 内部校验 Version + CurrentKey；切行后的旧结果在这里被丢弃。
-            _portState.Apply(key, version, result);
-        }
-        catch (OperationCanceledException)
-        {
-            // 用户切行或发起新一轮查询，状态已由 Reset/Begin 处理。
-        }
-        catch (Exception ex)
-        {
-            Log.WriteLine("[ports] " + ex);
-            _portState.Apply(key, version, PortQueryResult.Error(ex.Message));
-        }
-        finally
-        {
-            if (ReferenceEquals(_portCts, cts))
-                _portCts = null;
-            cts.Dispose();
-        }
+        if (UseRealData)
+            Network.Activate();
+        else
+            Network.ShowUnavailable("假数据模式不读取真实端口");
+
+        OnPropertyChanged(nameof(IsProcessView));
+        OnPropertyChanged(nameof(IsNetworkView));
+    }
+
+    /// <summary>
+    /// 端口视图的 PID → 名称映射。只做内存复制，不调用 OpenProcess 或任何 P/Invoke。
+    /// 2Hz 端口帧调用这里时，优先复用 1Hz 进程快照刚构建的映射；只有映射缺失
+    /// 或进程快照序号变了才从当前行重建一次。
+    /// </summary>
+    private IReadOnlyDictionary<uint, string> GetProcessNameMap()
+    {
+        if (_processNames is not null && _processNamesSequence == _lastProcessSequence)
+            return _processNames;
+
+        var map = new Dictionary<uint, string>(_rowsByKey.Count);
+        foreach (KeyValuePair<ProcKey, ProcessRowViewModel> kv in _rowsByKey)
+            map[kv.Key.Pid] = kv.Value.Name;
+
+        _processNames = map;
+        _processNamesSequence = _lastProcessSequence;
+        return map;
+    }
+
+    /// <summary>从当前不可变进程快照直接构建 PID → 名称映射，只在端口视图可见时调用。</summary>
+    private void RebuildProcessNameMap(ProcessSnapshot snapshot)
+    {
+        var map = new Dictionary<uint, string>(snapshot.Count);
+        ProcessSample[] buffer = snapshot.Buffer;
+
+        for (int i = 0; i < snapshot.Count; i++)
+            map[buffer[i].Pid] = buffer[i].Name;
+
+        _processNames = map;
+        _processNamesSequence = snapshot.Sequence;
     }
 
     public void Dispose()
@@ -597,10 +621,7 @@ public sealed class MainViewModel : ObservableObject, IDisposable
         if (_disposed) return;
         _disposed = true;
 
-        _portCts?.Cancel();
-        _portCts = null;
-        _portState.Reset(null);
-
+        _network?.Dispose();
         _fakeTick.Stop();
         _statsTimer.Stop();
         _searchDebounce.Stop();

@@ -18,6 +18,38 @@
         <BooleanToVisibilityConverter x:Key="BoolToVis" />
         <conv:SortArrowConverter x:Key="SortArrow" />
 
+        <!-- 左侧极简导航：选中态只换底色和前景色 -->
+        <Style x:Key="NavRadio" TargetType="RadioButton">
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+            <Setter Property="Margin" Value="0,0,0,4" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Bd"
+                                Background="Transparent"
+                                CornerRadius="4"
+                                Padding="10,8">
+                            <ContentPresenter VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowHover}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{StaticResource RowSelected}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
         <ContextMenu x:Key="RowContextMenu">
             <MenuItem Header="打开文件所在位置" Click="OnOpenLocationClick" />
             <MenuItem Header="复制 PID" Click="OnCopyPidClick" />
@@ -33,8 +65,63 @@
     </Window.Resources>
 
     <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="180" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
 
-    <DockPanel>
+        <!-- 左侧导航 -->
+        <Border Grid.Column="0"
+                Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,1,0">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Margin="18,18,18,22">
+                    <TextBlock Text="TaskMgrLite"
+                               FontSize="15"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="更快到达"
+                               Foreground="{StaticResource TextMuted}"
+                               FontSize="11"
+                               Margin="0,3,0,0" />
+                </StackPanel>
+
+                <StackPanel Margin="8,0,8,8">
+                    <RadioButton Style="{StaticResource NavRadio}"
+                                 GroupName="MainNav"
+                                 Tag="Processes"
+                                 AutomationProperties.AutomationId="NavProcesses"
+                                 IsChecked="{Binding IsProcessView, Mode=OneWay}"
+                                 Checked="OnNavChecked"
+                                 Command="{Binding ShowProcessesCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="▤" Width="22" FontSize="14"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="进程" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton Style="{StaticResource NavRadio}"
+                                 GroupName="MainNav"
+                                 Tag="Network"
+                                 AutomationProperties.AutomationId="NavNetwork"
+                                 IsChecked="{Binding IsNetworkView, Mode=OneWay}"
+                                 Checked="OnNavChecked"
+                                 Command="{Binding ShowNetworkCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="⇄" Width="22" FontSize="14"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="网络端口" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <!-- 右侧内容 -->
+        <Grid Grid.Column="1">
+
+        <DockPanel Visibility="{Binding IsProcessView, Converter={StaticResource BoolToVis}}">
 
         <!-- 顶栏 -->
         <Border DockPanel.Dock="Top"
@@ -65,6 +152,7 @@
 
                 <TextBlock Grid.Column="2"
                            Text="{Binding CountText}"
+                           AutomationProperties.AutomationId="ProcessCount"
                            Foreground="{StaticResource TextMuted}"
                            VerticalAlignment="Center"
                            Margin="16,0,0,0" />
@@ -116,7 +204,6 @@
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="280" />
@@ -164,69 +251,6 @@
                                MaxHeight="46"
                                ToolTip="{Binding SelectedRow.CommandLine}" />
                 </StackPanel>
-
-                <Border Grid.Row="1" Grid.ColumnSpan="2"
-                        Margin="0,8,0,0" Padding="0,8,0,0"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="0,1,0,0">
-                    <Grid>
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="Auto" />
-                            <RowDefinition Height="Auto" />
-                        </Grid.RowDefinitions>
-
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="网络端口"
-                                       Foreground="{StaticResource TextMuted}"
-                                       VerticalAlignment="Center" />
-
-                            <Button Command="{Binding QueryPortsCommand}"
-                                    Margin="10,0,0,0"
-                                    AutomationProperties.AutomationId="PortQueryButton">
-                                <Button.Style>
-                                    <Style TargetType="Button"
-                                           BasedOn="{StaticResource ToolbarButton}">
-                                        <Setter Property="Content" Value="查询端口" />
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding PortState.IsBusy}" Value="True">
-                                                <Setter Property="Content" Value="查询中..." />
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </Button.Style>
-                            </Button>
-
-                            <TextBlock Text="{Binding PortState.StatusText}"
-                                       Foreground="{StaticResource TextMuted}"
-                                       Margin="10,0,0,0"
-                                       VerticalAlignment="Center"
-                                       AutomationProperties.AutomationId="PortStatus" />
-                        </StackPanel>
-
-                        <ListView Grid.Row="1"
-                                  ItemsSource="{Binding PortState.Entries}"
-                                  MaxHeight="120"
-                                  Margin="0,6,0,0"
-                                  BorderThickness="0"
-                                  Background="Transparent"
-                                  Foreground="{StaticResource TextPrimary}"
-                                  ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                                  AutomationProperties.AutomationId="PortList">
-                            <ListView.View>
-                                <GridView>
-                                    <GridViewColumn Header="协议" Width="70"
-                                                    DisplayMemberBinding="{Binding Protocol}" />
-                                    <GridViewColumn Header="本地地址" Width="230"
-                                                    DisplayMemberBinding="{Binding LocalEndpoint}" />
-                                    <GridViewColumn Header="远程地址" Width="230"
-                                                    DisplayMemberBinding="{Binding RemoteEndpoint}" />
-                                    <GridViewColumn Header="状态" Width="120"
-                                                    DisplayMemberBinding="{Binding State}" />
-                                </GridView>
-                            </ListView.View>
-                        </ListView>
-                    </Grid>
-                </Border>
             </Grid>
         </Border>
 
@@ -281,7 +305,8 @@
 
                     <GridViewColumn Width="82">
                         <GridViewColumn.Header>
-                            <StackPanel Orientation="Horizontal" Tag="Pid">
+                            <StackPanel Orientation="Horizontal" Tag="Pid"
+                                        AutomationProperties.Name="PID">
                                 <TextBlock Text="PID" />
                                 <TextBlock Margin="3,0,0,0"
                                            MinWidth="10"
@@ -476,8 +501,224 @@
 
     </DockPanel>
 
+        <!-- 网络端口视图 -->
+        <DockPanel Visibility="{Binding IsNetworkView, Converter={StaticResource BoolToVis}}">
+            <Border DockPanel.Dock="Top"
+                    Background="{StaticResource Surface}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="14,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="280" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0"
+                               Text="网络端口"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="0,0,16,0" />
+
+                    <TextBox Grid.Column="1"
+                             AutomationProperties.AutomationId="PortSearchBox"
+                             Text="{Binding Network.SearchText, UpdateSourceTrigger=PropertyChanged}"
+                             ToolTip="按进程名、PID 或端口过滤"
+                             VerticalAlignment="Center" />
+
+                    <TextBlock Grid.Column="2"
+                               Text="{Binding Network.CountText}"
+                               AutomationProperties.AutomationId="PortCount"
+                               Foreground="{StaticResource TextMuted}"
+                               VerticalAlignment="Center"
+                               Margin="16,0,0,0" />
+
+                    <TextBlock Grid.Column="3"
+                               Text="{Binding Network.StatusText}"
+                               AutomationProperties.AutomationId="PortStatus"
+                               Foreground="{StaticResource TextMuted}"
+                               VerticalAlignment="Center"
+                               Margin="16,0,0,0" />
+                </Grid>
+            </Border>
+
+            <ListView x:Name="PortList"
+                      AutomationProperties.AutomationId="PortList"
+                      ItemsSource="{Binding Network.View}"
+                      Margin="0,6,0,0"
+                      SelectionMode="Single"
+                      AlternationCount="2"
+                      ScrollViewer.CanContentScroll="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling">
+                <ListView.View>
+                    <GridView AllowsColumnReorder="True">
+                        <GridViewColumn Width="80">
+                            <GridViewColumn.Header>
+                                <StackPanel Orientation="Horizontal" Tag="Protocol"
+                                                AutomationProperties.Name="协议">
+                                    <TextBlock Text="协议" />
+                                    <TextBlock Margin="3,0,0,0" MinWidth="10" FontSize="10"
+                                               TextAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Accent}">
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{StaticResource SortArrow}">
+                                                <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
+                                                <Binding Path="Network.SortKey" />
+                                                <Binding Path="Network.SortDirection" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding Protocol}" Margin="8,0,0,0" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Width="250">
+                            <GridViewColumn.Header>
+                                <StackPanel Orientation="Horizontal" Tag="LocalEndpoint"
+                                                AutomationProperties.Name="本地地址">
+                                    <TextBlock Text="本地地址" />
+                                    <TextBlock Margin="3,0,0,0" MinWidth="10" FontSize="10"
+                                               TextAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Accent}">
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{StaticResource SortArrow}">
+                                                <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
+                                                <Binding Path="Network.SortKey" />
+                                                <Binding Path="Network.SortDirection" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding LocalEndpoint}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Width="250">
+                            <GridViewColumn.Header>
+                                <StackPanel Orientation="Horizontal" Tag="RemoteEndpoint"
+                                                AutomationProperties.Name="远程地址">
+                                    <TextBlock Text="远程地址" />
+                                    <TextBlock Margin="3,0,0,0" MinWidth="10" FontSize="10"
+                                               TextAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Accent}">
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{StaticResource SortArrow}">
+                                                <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
+                                                <Binding Path="Network.SortKey" />
+                                                <Binding Path="Network.SortDirection" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding RemoteEndpoint}" TextTrimming="CharacterEllipsis" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Width="130">
+                            <GridViewColumn.Header>
+                                <StackPanel Orientation="Horizontal" Tag="State"
+                                                AutomationProperties.Name="状态">
+                                    <TextBlock Text="状态" />
+                                    <TextBlock Margin="3,0,0,0" MinWidth="10" FontSize="10"
+                                               TextAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Accent}">
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{StaticResource SortArrow}">
+                                                <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
+                                                <Binding Path="Network.SortKey" />
+                                                <Binding Path="Network.SortDirection" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding State}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Width="80">
+                            <GridViewColumn.Header>
+                                <StackPanel Orientation="Horizontal" Tag="Pid"
+                                            AutomationProperties.Name="PID">
+                                    <TextBlock Text="PID" />
+                                    <TextBlock Margin="3,0,0,0" MinWidth="10" FontSize="10"
+                                               TextAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Accent}">
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{StaticResource SortArrow}">
+                                                <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
+                                                <Binding Path="Network.SortKey" />
+                                                <Binding Path="Network.SortDirection" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding PidDisplay}"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,0,10,0" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+
+                        <GridViewColumn Width="220">
+                            <GridViewColumn.Header>
+                                <StackPanel Orientation="Horizontal" Tag="ProcessName"
+                                                AutomationProperties.Name="进程名">
+                                    <TextBlock Text="进程名" />
+                                    <TextBlock Margin="3,0,0,0" MinWidth="10" FontSize="10"
+                                               TextAlignment="Center" VerticalAlignment="Center"
+                                               Foreground="{StaticResource Accent}">
+                                        <TextBlock.Text>
+                                            <MultiBinding Converter="{StaticResource SortArrow}">
+                                                <Binding Path="Tag" RelativeSource="{RelativeSource AncestorType=StackPanel}" />
+                                                <Binding Path="Network.SortKey" />
+                                                <Binding Path="Network.SortDirection" />
+                                            </MultiBinding>
+                                        </TextBlock.Text>
+                                    </TextBlock>
+                                </StackPanel>
+                            </GridViewColumn.Header>
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding ProcessName}"
+                                               TextTrimming="CharacterEllipsis"
+                                               ToolTip="{Binding ProcessName}" />
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+
+        </Grid>
+
         <!-- 非阻塞 Toast：结束进程结果 / 提权引导 -->
         <Border x:Name="Toast"
+                Grid.Column="1"
                 AutomationProperties.AutomationId="Toast"
                 Visibility="Collapsed"
                 HorizontalAlignment="Right"
