@@ -82,7 +82,9 @@ Copy-Item $readme (Join-Path $stage 'README.md') -Force
 Copy-Item (Join-Path $root 'LICENSE') (Join-Path $stage 'LICENSE') -Force
 $docs = Join-Path $root 'docs'
 if (Test-Path $docs) {
-    Copy-Item $docs (Join-Path $stage 'docs') -Recurse -Force
+    $publicDocs = Join-Path $stage 'docs'
+    New-Item -ItemType Directory -Force -Path $publicDocs | Out-Null
+    Copy-Item (Join-Path $docs '*.png') $publicDocs -Force
 }
 
 # 自包含包内含 .NET 运行时，分发时须附带它的许可与第三方声明。
