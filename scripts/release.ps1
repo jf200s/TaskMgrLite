@@ -1,4 +1,4 @@
-#Requires -Version 5.1
+﻿#Requires -Version 5.1
 # Clean, self-contained ReadyToRun release package.
 # ASCII-only on purpose.
 param(
@@ -43,7 +43,7 @@ if (-not $SkipTests) {
     Write-Host "selftest exit=$($p.ExitCode)"
     if ($p.ExitCode -ne 0) { throw 'selftest failed' }
 
-    foreach ($diag in @('--diag-round3', '--diag-round4')) {
+    foreach ($diag in @('--diag-round3', '--diag-round4', '--diag-perf')) {
         Write-Host "`n== $diag ==" -ForegroundColor Cyan
         $p = Start-Process -FilePath $exe -ArgumentList $diag -Wait -PassThru
         Write-Host "$diag exit=$($p.ExitCode)"
