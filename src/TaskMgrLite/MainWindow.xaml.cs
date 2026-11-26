@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     private readonly ContextMenu _blankMenu;
     private KillReport? _lastKillReport;
     private string _lastKillLabel = string.Empty;
+    private PerformanceViewModel? _performance;
 
     public MainWindow()
     {
@@ -53,7 +54,11 @@ public partial class MainWindow : Window
         };
         _toastTimer.Tick += (_, _) => HideToast();
 
-        Closed += (_, _) => _toastTimer.Stop();
+        Closed += (_, _) =>
+        {
+            _toastTimer.Stop();
+            _performance?.Dispose();
+        };
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -131,8 +136,8 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// UIA 的 SelectionItemPattern 不会走 Button.Click，但会改变 IsChecked。
-    /// 命令负责真实点击，Checked 负责键盘/UIA 切换；两边都幂等。
+    /// 三个顶层视图共用同一组 RadioButton。Checked 是唯一入口：
+    /// 鼠标、键盘和 UIA 的 SelectionItemPattern 都会走到这里。
     /// </summary>
     private void OnNavChecked(object sender, RoutedEventArgs e)
     {
@@ -142,10 +147,61 @@ public partial class MainWindow : Window
         if (DataContext is not MainViewModel vm)
             return;
 
-        if (section == "Network")
-            vm.ShowNetworkCommand.Execute(null);
-        else
-            vm.ShowProcessesCommand.Execute(null);
+        switch (section)
+        {
+            case "Network":
+                ShowNetworkSection(vm);
+                break;
+            case "Performance":
+                ShowPerformanceSection(vm);
+                break;
+            default:
+                ShowProcessSection(vm);
+                break;
+        }
+    }
+
+    private void ShowProcessSection(MainViewModel vm)
+    {
+        _performance?.Deactivate();
+
+        ProcessHost.Visibility = Visibility.Visible;
+        NetworkHost.Visibility = Visibility.Collapsed;
+        PerformanceHost.Visibility = Visibility.Collapsed;
+
+        vm.ShowProcessesCommand.Execute(null);
+    }
+
+    private void ShowNetworkSection(MainViewModel vm)
+    {
+        _performance?.Deactivate();
+
+        ProcessHost.Visibility = Visibility.Collapsed;
+        NetworkHost.Visibility = Visibility.Visible;
+        PerformanceHost.Visibility = Visibility.Collapsed;
+
+        vm.ShowNetworkCommand.Execute(null);
+    }
+
+    private void ShowPerformanceSection(MainViewModel vm)
+    {
+        // 停掉 2Hz 端口轮询；MainViewModel 回到 Processes，避免它继续为端口视图重建名称映射。
+        vm.ShowProcessesCommand.Execute(null);
+
+        _performance ??= new PerformanceViewModel(Dispatcher);
+        PerformanceViewControl.DataContext = _performance;
+
+        if (!vm.UseRealData)
+            _performance.ShowUnavailable("假数据模式不读取真实性能数据");
+
+        ProcessHost.Visibility = Visibility.Collapsed;
+        NetworkHost.Visibility = Visibility.Collapsed;
+        PerformanceHost.Visibility = Visibility.Visible;
+
+        // PerformanceView 的 IsVisibleChanged 也会兜底 Activate；这里显式调用保证
+        // 即使以后把视图换掉，线程生命周期仍由导航驱动。
+        if (vm.UseRealData)
+            _performance.Activate();
     }
 
     private void OnExpanderClick(object sender, RoutedEventArgs e)

@@ -1,0 +1,321 @@
+<UserControl x:Class="TaskMgrLite.Views.PerformanceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Background="{StaticResource AppBackground}"
+             Foreground="{StaticResource TextPrimary}"
+             AutomationProperties.AutomationId="PerformanceView"
+             AutomationProperties.Name="性能"
+             FontFamily="Segoe UI"
+             FontSize="13"
+             TextOptions.TextFormattingMode="Display"
+             UseLayoutRounding="True">
+
+    <UserControl.Resources>
+        <!-- 只给折线用的强调色，其余全部复用 Themes/Dark.xaml 的调色板 -->
+        <SolidColorBrush x:Key="PerfCpuLine" Color="#5B9DFF" />
+        <SolidColorBrush x:Key="PerfDiskReadLine" Color="#7BD88F" />
+        <SolidColorBrush x:Key="PerfDiskWriteLine" Color="#C792EA" />
+        <SolidColorBrush x:Key="PerfRxLine" Color="#FFB86B" />
+        <SolidColorBrush x:Key="PerfTxLine" Color="#C792EA" />
+
+        <Style x:Key="PerfCard" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource Surface}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="14,12" />
+        </Style>
+
+        <Style x:Key="PerfTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        </Style>
+
+        <Style x:Key="PerfValue" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="26" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+            <Setter Property="Margin" Value="0,6,0,0" />
+        </Style>
+
+        <Style x:Key="PerfStat" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{StaticResource TextPrimary}" />
+        </Style>
+
+        <Style x:Key="PerfSub" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{StaticResource TextMuted}" />
+        </Style>
+
+        <Style x:Key="PerfLegendLine" TargetType="Rectangle">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="2" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="PerfChartBaseline" TargetType="Border">
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="0,0,0,1" />
+            <Setter Property="VerticalAlignment" Value="Bottom" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+
+        <!-- 固定 60x100 坐标系，由 Viewbox 缩放。直接 Stretch=Fill 会把
+             “几乎不变的 Y” 归一化成整高，3.6% 的 CPU 会看起来像 100%。 -->
+        <Style x:Key="PerfLine" TargetType="Polyline">
+            <Setter Property="Width" Value="600" />
+            <Setter Property="Height" Value="64" />
+            <Setter Property="Stretch" Value="None" />
+            <Setter Property="StrokeThickness" Value="1.2" />
+            <Setter Property="StrokeLineJoin" Value="Round" />
+            <Setter Property="IsHitTestVisible" Value="False" />
+        </Style>
+    </UserControl.Resources>
+
+    <DockPanel>
+        <!-- 顶栏：只保留标题和采样状态 -->
+        <Border DockPanel.Dock="Top"
+                Background="{StaticResource Surface}"
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,0,1"
+                Padding="14,10">
+            <Grid>
+                <TextBlock Text="性能"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+
+                <TextBlock Text="{Binding StatusText}"
+                           Foreground="{StaticResource TextMuted}"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center" />
+            </Grid>
+        </Border>
+
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <Grid Margin="16,14,16,16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- CPU -->
+                <Border Grid.Row="0" Grid.Column="0"
+                        Style="{StaticResource PerfCard}"
+                        Margin="0,0,6,12">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="CPU" Style="{StaticResource PerfTitle}" />
+                            <TextBlock Text="系统时间占比"
+                                       Style="{StaticResource PerfSub}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+
+                        <TextBlock Text="{Binding CpuText}"
+                                   Style="{StaticResource PerfValue}" />
+                        <TextBlock Text="idle 已从 kernel 扣除；不追 Turbo 频率折算"
+                                   Style="{StaticResource PerfSub}"
+                                   Margin="0,2,0,0" />
+
+                        <Grid Height="64" Margin="0,10,0,0" ClipToBounds="True">
+                            <Border Style="{StaticResource PerfChartBaseline}" />
+                            <Viewbox Stretch="Fill" StretchDirection="Both">
+                                <Canvas Width="600" Height="64" Background="Transparent">
+                                    <Polyline Style="{StaticResource PerfLine}"
+                                              x:Name="CpuLine"
+                                              Stroke="{StaticResource PerfCpuLine}" />
+                                </Canvas>
+                            </Viewbox>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- 内存 -->
+                <Border Grid.Row="0" Grid.Column="1"
+                        Style="{StaticResource PerfCard}"
+                        Margin="6,0,0,12">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="内存" Style="{StaticResource PerfTitle}" />
+                            <TextBlock Text="{Binding MemorySpeedText}"
+                                       Style="{StaticResource PerfSub}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+
+                        <TextBlock Text="{Binding MemoryText}"
+                                   Style="{StaticResource PerfValue}" />
+                        <TextBlock Text="{Binding MemorySubText}"
+                                   Style="{StaticResource PerfSub}"
+                                   Margin="0,4,0,0" />
+                        <TextBlock Text="已用 = 总量 - 可用（standby + free + zero）"
+                                   Style="{StaticResource PerfSub}"
+                                   Margin="0,10,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 磁盘：系统总吞吐，不是单盘 -->
+                <Border Grid.Row="1" Grid.Column="0"
+                        Style="{StaticResource PerfCard}"
+                        Margin="0,0,6,12">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="磁盘" Style="{StaticResource PerfTitle}" />
+                            <TextBlock Text="系统总吞吐"
+                                       Style="{StaticResource PerfSub}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="{Binding DiskReadText}"
+                                       Style="{StaticResource PerfStat}" />
+                            <TextBlock Text="{Binding DiskWriteText}"
+                                       Style="{StaticResource PerfStat}"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="16,0,0,0" />
+                        </StackPanel>
+
+                        <Grid Height="58" Margin="0,8,0,0" ClipToBounds="True">
+                            <Border Style="{StaticResource PerfChartBaseline}" />
+                            <Viewbox Stretch="Fill" StretchDirection="Both">
+                                <Canvas Width="600" Height="64" Background="Transparent">
+                                    <Polyline Style="{StaticResource PerfLine}"
+                                              x:Name="DiskReadLine"
+                                              Stroke="{StaticResource PerfDiskReadLine}" />
+                                </Canvas>
+                            </Viewbox>
+                            <Viewbox Stretch="Fill" StretchDirection="Both">
+                                <Canvas Width="600" Height="64" Background="Transparent">
+                                    <Polyline Style="{StaticResource PerfLine}"
+                                              x:Name="DiskWriteLine"
+                                              Stroke="{StaticResource PerfDiskWriteLine}" />
+                                </Canvas>
+                            </Viewbox>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Rectangle Style="{StaticResource PerfLegendLine}"
+                                       Fill="{StaticResource PerfDiskReadLine}" />
+                            <TextBlock Text="读" Style="{StaticResource PerfSub}"
+                                       Margin="5,0,14,0" />
+                            <Rectangle Style="{StaticResource PerfLegendLine}"
+                                       Fill="{StaticResource PerfDiskWriteLine}" />
+                            <TextBlock Text="写" Style="{StaticResource PerfSub}"
+                                       Margin="5,0,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 网络：系统总上下行 -->
+                <Border Grid.Row="1" Grid.Column="1"
+                        Style="{StaticResource PerfCard}"
+                        Margin="6,0,0,12">
+                    <StackPanel>
+                        <DockPanel>
+                            <TextBlock Text="网络" Style="{StaticResource PerfTitle}" />
+                            <TextBlock Text="系统总计"
+                                       Style="{StaticResource PerfSub}"
+                                       HorizontalAlignment="Right" />
+                        </DockPanel>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <TextBlock Text="{Binding NetworkRxText}"
+                                       Style="{StaticResource PerfStat}" />
+                            <TextBlock Text="{Binding NetworkTxText}"
+                                       Style="{StaticResource PerfStat}"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="16,0,0,0" />
+                        </StackPanel>
+
+                        <Grid Height="58" Margin="0,8,0,0" ClipToBounds="True">
+                            <Border Style="{StaticResource PerfChartBaseline}" />
+                            <Viewbox Stretch="Fill" StretchDirection="Both">
+                                <Canvas Width="600" Height="64" Background="Transparent">
+                                    <Polyline Style="{StaticResource PerfLine}"
+                                              x:Name="NetworkRxLine"
+                                              Stroke="{StaticResource PerfRxLine}" />
+                                </Canvas>
+                            </Viewbox>
+                            <Viewbox Stretch="Fill" StretchDirection="Both">
+                                <Canvas Width="600" Height="64" Background="Transparent">
+                                    <Polyline Style="{StaticResource PerfLine}"
+                                              x:Name="NetworkTxLine"
+                                              Stroke="{StaticResource PerfTxLine}" />
+                                </Canvas>
+                            </Viewbox>
+                        </Grid>
+
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                            <Rectangle Style="{StaticResource PerfLegendLine}"
+                                       Fill="{StaticResource PerfRxLine}" />
+                            <TextBlock Text="下行" Style="{StaticResource PerfSub}"
+                                       Margin="5,0,14,0" />
+                            <Rectangle Style="{StaticResource PerfLegendLine}"
+                                       Fill="{StaticResource PerfTxLine}" />
+                            <TextBlock Text="上行" Style="{StaticResource PerfSub}"
+                                       Margin="5,0,0,0" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- GPU：显存可用，占用率 v1 固定 N/A -->
+                <Border Grid.Row="2" Grid.ColumnSpan="2"
+                        Style="{StaticResource PerfCard}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="GPU" Style="{StaticResource PerfTitle}" />
+                            <TextBlock Text="{Binding GpuNameText}"
+                                       Style="{StaticResource PerfValue}"
+                                       FontSize="18"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{Binding GpuMemoryText}"
+                                       Style="{StaticResource PerfSub}"
+                                       Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding GpuBudgetText}"
+                                       Style="{StaticResource PerfSub}"
+                                       Margin="0,2,0,0" />
+                            <TextBlock Text="{Binding GpuMemoryNote}"
+                                       Style="{StaticResource PerfSub}"
+                                       Margin="0,6,0,0"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="420" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Center"
+                                    Margin="20,0,0,0">
+                            <TextBlock Text="{Binding GpuUsageText}"
+                                       Style="{StaticResource PerfValue}"
+                                       FontSize="28"
+                                       HorizontalAlignment="Right"
+                                       Margin="0" />
+                            <TextBlock Text="占用率"
+                                       Style="{StaticResource PerfSub}"
+                                       HorizontalAlignment="Right" />
+                            <TextBlock Text="{Binding GpuUsageNote}"
+                                       Style="{StaticResource PerfSub}"
+                                       HorizontalAlignment="Right"
+                                       TextAlignment="Right"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="320"
+                                       Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+        </ScrollViewer>
+    </DockPanel>
+</UserControl>

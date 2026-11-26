@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, TaskMgrLite-Plus]
   pull_request:
 
 permissions:
@@ -33,6 +33,14 @@ jobs:
           $exe = "src/TaskMgrLite/bin/Release/net11.0-windows/TaskMgrLite.exe"
           $p = Start-Process -FilePath $exe -ArgumentList '--selftest' -Wait -PassThru
           if ($p.ExitCode -ne 0) { throw "selftest failed with exit code $($p.ExitCode)" }
+
+      # 原生布局、首帧契约、稳态 0 分配、SMBIOS/DXGI 降级
+      - name: Perf contract
+        shell: pwsh
+        run: |
+          $exe = "src/TaskMgrLite/bin/Release/net11.0-windows/TaskMgrLite.exe"
+          $p = Start-Process -FilePath $exe -ArgumentList '--diag-perf' -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "perf diagnostics failed with exit code $($p.ExitCode)" }
 
       - name: Upload run log on failure
         if: failure()

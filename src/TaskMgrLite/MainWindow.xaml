@@ -90,9 +90,8 @@
                                  GroupName="MainNav"
                                  Tag="Processes"
                                  AutomationProperties.AutomationId="NavProcesses"
-                                 IsChecked="{Binding IsProcessView, Mode=OneWay}"
-                                 Checked="OnNavChecked"
-                                 Command="{Binding ShowProcessesCommand}">
+                                 IsChecked="True"
+                                 Checked="OnNavChecked">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="▤" Width="22" FontSize="14"
                                        VerticalAlignment="Center" />
@@ -104,13 +103,23 @@
                                  GroupName="MainNav"
                                  Tag="Network"
                                  AutomationProperties.AutomationId="NavNetwork"
-                                 IsChecked="{Binding IsNetworkView, Mode=OneWay}"
-                                 Checked="OnNavChecked"
-                                 Command="{Binding ShowNetworkCommand}">
+                                 Checked="OnNavChecked">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="⇄" Width="22" FontSize="14"
                                        VerticalAlignment="Center" />
                             <TextBlock Text="网络端口" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </RadioButton>
+
+                    <RadioButton Style="{StaticResource NavRadio}"
+                                 GroupName="MainNav"
+                                 Tag="Performance"
+                                 AutomationProperties.AutomationId="NavPerformance"
+                                 Checked="OnNavChecked">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="▥" Width="22" FontSize="14"
+                                       VerticalAlignment="Center" />
+                            <TextBlock Text="性能" VerticalAlignment="Center" />
                         </StackPanel>
                     </RadioButton>
                 </StackPanel>
@@ -120,7 +129,7 @@
         <!-- 右侧内容 -->
         <Grid Grid.Column="1">
 
-        <DockPanel Visibility="{Binding IsProcessView, Converter={StaticResource BoolToVis}}">
+        <DockPanel x:Name="ProcessHost">
 
         <!-- 顶栏 -->
         <Border DockPanel.Dock="Top"
@@ -379,8 +388,13 @@
     </DockPanel>
 
         <!-- 网络端口视图：DataContext 由 MainWindow 注入 NetworkVM -->
-        <Grid Visibility="{Binding IsNetworkView, Converter={StaticResource BoolToVis}}">
+        <Grid x:Name="NetworkHost" Visibility="Collapsed">
             <views:NetworkView DataContext="{Binding NetworkVM}" />
+        </Grid>
+
+        <!-- 性能视图：DataContext 由 MainWindow code-behind 注入 PerformanceViewModel -->
+        <Grid x:Name="PerformanceHost" Visibility="Collapsed">
+            <views:PerformanceView x:Name="PerformanceViewControl" />
         </Grid>
 
         </Grid>
