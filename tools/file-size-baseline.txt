@@ -1,0 +1,5 @@
+# File-size ratchet for existing oversized files.
+# Format: relative/path=current max lines
+# These files may only shrink. Remove an entry once it is under the hard limit.
+src/TaskMgrLite/ViewModels/MainViewModel.cs=976
+src/TaskMgrLite/Core/SelfTest.Tree.cs=831

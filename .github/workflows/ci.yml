@@ -20,6 +20,10 @@ jobs:
         with:
           dotnet-version: '11.0.x'
 
+      - name: File size guard
+        shell: pwsh
+        run: ./scripts/check-file-size.ps1
+
       - name: Build
         run: dotnet build src/TaskMgrLite/TaskMgrLite.csproj -c Release -v minimal
 

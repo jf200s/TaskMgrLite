@@ -13,6 +13,10 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 $exe  = Join-Path $root 'publish\TaskMgrLite.exe'
 
+Write-Host "`n== file size ==" -ForegroundColor Cyan
+& (Join-Path $PSScriptRoot 'check-file-size.ps1')
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
 if (-not $NoBuild) {
     & (Join-Path $PSScriptRoot 'build.ps1')
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

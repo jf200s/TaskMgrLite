@@ -137,6 +137,10 @@ NtQuerySystemInformation(class 5) → 零分配 unsafe 解析
 
 `release.ps1` 会清空 staging、重新 publish、跑 selftest 与 diag、可选跑 UI 回归，删除 PDB/XML/logs，复制 README、docs 和 .NET 声明，再生成 zip 与 `.sha256`。
 
+## 开发规范
+
+文件规模硬上限和“存量只能变小”的基线规则见 [docs/CODE_STANDARDS.md](docs/CODE_STANDARDS.md)。`scripts/check.ps1` 第一步和 CI 都会执行 `scripts/check-file-size.ps1`。
+
 ## 已知限制
 
 - 发布包解压后约 137MB（自包含 WPF 运行时），zip 约 60MB；没有安装器，不是单文件，目的是保住冷启动。
