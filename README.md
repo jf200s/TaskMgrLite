@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml/badge.svg)](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml)
 
-> 当前版本 **0.1.02** · [Release](https://github.com/jf200s/TaskMgrLite/releases/tag/v0.1.02) · [Changelog](CHANGELOG.md)
+> 当前版本 **0.1.03** · [Release](https://github.com/jf200s/TaskMgrLite/releases/tag/v0.1.03) · [Changelog](CHANGELOG.md)
 
 一个为“更快到达”而做的 Windows 任务管理器替代品。不是信息更多，而是启动更快、操作路径更短、底层解析更干净。
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.03] - 2026-11-26
 
 ### 新增
 
@@ -8,19 +8,29 @@
 - 端口列表支持按协议、地址、状态、PID、进程名搜索，列头排序，完整虚拟化（Recycling）。
 - 端口帧按 `协议 + 本地端点 + 远程端点 + PID` 做 UI Diff；无变化时零 `CollectionChanged`。
 - 进程名通过当前进程快照做内存映射，不新增 `OpenProcess` / P/Invoke。
+- 文件规模标准与 `check-file-size.ps1`：硬上限 + 存量棘轮，已接入本地检查和 CI。
+- 正式 UIA 回归脚本 `scripts/test-network-view.ps1`。
 
 ### 变更
 
 - 删除进程详情底部的旧端口查询面板、`PortQueryState`、`QueryPortsCommand` 和 `PortReader.Read(pid)`。
 - `PortReader.ReadAll()` 成为唯一端口读取入口，稳定排序后直接供 UI Diff。
 - 切回“进程”立即停止端口轮询并释放端口行；进程列表集合保持驻留，不重建。
+- 网络端口视图抽离为 `Views/NetworkView.xaml`，MainWindow 只保留导航和容器切换。
+- 进程/端口列头共用 `SortHeaderTemplate`，消除重复排序箭头 XAML。
+- `SelfTest` 拆为 `SelfTest.cs/Core/Tree/Snapshot/Ports` partial 文件。
+- 设计文档归档到 `docs/design/`，新增 `docs/CODE_STANDARDS.md`。
 
 ### 验证
 
 - Release 构建：0 warning / 0 error。
 - `--selftest`：72 passed, 0 failed。
 - `--diag-round3` / `--diag-round4`：exit 0。
-- UIA：多次采样 352–450 端口时均只生成 27 个行容器；PID 升降序、进程名搜索（40/352）、切回进程后 504/504 行保持。
+- UIA：端口视图 342 端口仅生成 27 个行容器；PID 升降序、进程名搜索（42/339）、切回进程后集合非空。
+- 进程列头 PID 升降序 UIA 通过。
+- 交流供电热启动各 10 次：当前中位 844.5ms（剔除两次 3s 级扫描后典型 800.5ms），同机 0.1.02 基线 787.5ms。
+- `[enum]`：当前 1.6KB 均值 / 61KB max，基线 2.3KB / 61KB；无 XAML 重构导致的分配升高。
+- 网络视图：CPU 0.36–0.38s/10s，专用工作集 65.2–65.8MB，Gen2=0。
 
 ## [0.1.02] - 2026-11-22
 
