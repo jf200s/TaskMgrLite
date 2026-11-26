@@ -1,4 +1,29 @@
-# Changelog
+﻿# Changelog
+
+## [0.1.04] - 2026-11-26
+
+### 新增
+
+- 独立“性能”视图：CPU 总体、物理内存、系统磁盘吞吐、系统网络吞吐、GPU 显存与预算。
+- 原生采集层：`GetSystemTimes`、`GlobalMemoryStatusEx`、`GetPerformanceInfo`、`NtQuerySystemInformation`、`GetIfTable2/GetIfEntry2`、SMBIOS Type 17、DXGI 显存。
+- 60 秒环形历史 + 原生 `Polyline` 折线图，点集只创建一次；固定坐标系 + Viewbox 防止平坦曲线被拉伸归一化。
+- `--diag-perf`：原生结构体布局、首/次帧契约、稳态零分配、SMBIOS/DXGI 降级检查，并接入 CI 和发布脚本。
+
+### 变更
+
+- 顶部导航新增“性能”，与“进程”“网络端口”互斥；性能页生命周期由 `MainWindow` code-behind 驱动，切走立即停止 1Hz 采集线程。
+- 性能页文本与折线 1Hz 刷新；`ScrollViewer` 保证小窗口可滚动到 GPU 卡片。
+- GPU 占用率固定 N/A；DXGI 显存 usage 明确标注为本进程口径，全系统占用不引入 PDH。
+- CI 增加 `TaskMgrLite-Plus` 分支 push 触发和 Perf contract 步骤。
+
+### 验证
+
+- Debug / Release 构建：0 warning / 0 error。
+- `--selftest`：72 passed, 0 failed。
+- `--diag-perf`：4 passed, 0 failed（原生布局 / 首次帧 / 稳态零分配 / 可选硬件 smoke）。
+- 真机 1Hz 性能页：采集器稳态 0 B/次；页面激活 `--stats` 约 0.20–0.24MB/s，切走后 0.08–0.09MB/s。
+- 性能页线程生命周期：25 → 26 → 25，日志 `loop exit` + `deactivate joined=True`。
+- `check-file-size`：81 个文件 0 失败；GitHub Actions push 与 PR 均通过。
 
 ## [0.1.03] - 2026-11-26
 

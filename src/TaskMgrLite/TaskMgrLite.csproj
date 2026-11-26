@@ -13,8 +13,8 @@
 
     <AssemblyName>TaskMgrLite</AssemblyName>
     <RootNamespace>TaskMgrLite</RootNamespace>
-    <Version>0.1.03</Version>
-    <FileVersion>0.1.03.0</FileVersion>
+    <Version>0.1.04</Version>
+    <FileVersion>0.1.04.0</FileVersion>
 
     <!-- exe 与任务栏图标；app.ico 含 16~256 九档，窗口图标另以 Resource 引用 -->
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
