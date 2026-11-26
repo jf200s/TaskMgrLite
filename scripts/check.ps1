@@ -30,6 +30,12 @@ $code = $p.ExitCode
 Write-Host "selftest exit=$code"
 if ($code -ne 0) { exit $code }
 
+Write-Host "`n== diag-perf ==" -ForegroundColor Cyan
+$p = Start-Process -FilePath $exe -ArgumentList '--diag-perf' -Wait -PassThru
+$code = $p.ExitCode
+Write-Host "perf diag exit=$code"
+if ($code -ne 0) { exit $code }
+
 Write-Host "`n== diag-round3 ==" -ForegroundColor Cyan
 $p = Start-Process -FilePath $exe -ArgumentList '--diag-round3' -Wait -PassThru
 $code = $p.ExitCode

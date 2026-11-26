@@ -41,9 +41,10 @@ public partial class App : Application
         bool selftest = HasFlag(e.Args, "--selftest");
         bool diagRound3 = HasFlag(e.Args, "--diag-round3");
         bool diagRound4 = HasFlag(e.Args, "--diag-round4");
+        bool diagPerf = HasFlag(e.Args, "--diag-perf");
 
         // 只在诊断/统计模式接管控制台，--probe-exit 静默跑，避免污染测量输出
-        Log.Initialize(attachConsole: stats || selftest || diagRound3 || diagRound4);
+        Log.Initialize(attachConsole: stats || selftest || diagRound3 || diagRound4 || diagPerf);
 
         if (diagRound3)
         {
@@ -58,6 +59,15 @@ public partial class App : Application
         {
             Log.WriteLine("[boot] diag-round4（不创建窗口）");
             int failed = Round4Diagnostics.Run();
+            Environment.ExitCode = failed;
+            Shutdown(failed);
+            return;
+        }
+
+        if (diagPerf)
+        {
+            Log.WriteLine("[boot] diag-perf（不创建窗口）");
+            int failed = PerfDiagnostics.Run();
             Environment.ExitCode = failed;
             Shutdown(failed);
             return;
