@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using TaskMgrLite.Interop;
 
@@ -24,6 +25,7 @@ public static class PerfDiagnostics
         Check("native layout", NativeLayout);
         Check("collector first/second frame", CollectorContract);
         Check("steady zero allocation", SteadyAllocation);
+        Check("dxcore gpu utilization", DxCoreSmoke);
         Check("optional hardware smoke", HardwareSmoke);
 
         Log.WriteLine($"[diag-perf] {_passed} passed, {_failed} failed");
@@ -38,14 +40,11 @@ public static class PerfDiagnostics
         ExpectSize<MetricsNative.PerformanceInformation>(104);
         ExpectSize<MetricsNative.MibIfRow2>(1352);
         ExpectSize<MetricsNative.MibIfTable2>(1360);
-        ExpectSize<DxgiNative.AdapterDesc1>(312);
-        ExpectSize<DxgiNative.QueryVideoMemoryInfo>(32);
 
         ExpectOffset<MetricsNative.MibIfRow2>("InterfaceLuid", 0);
         ExpectOffset<MetricsNative.MibIfRow2>("InterfaceAndOperStatusFlags", 1152);
         ExpectOffset<MetricsNative.MibIfRow2>("InOctets", 1208);
         ExpectOffset<MetricsNative.MibIfRow2>("OutOctets", 1280);
-        ExpectOffset<DxgiNative.AdapterDesc1>("DedicatedVideoMemory", 272);
     }
 
     private static void CollectorContract()
@@ -76,6 +75,42 @@ public static class PerfDiagnostics
             throw new Exception("second disk sample should be valid");
         if (!second.NetworkValid)
             throw new Exception("second network sample should be valid");
+
+        // 端到端：DXCore 选卡 → LUID 回传给 DXGI → 显存与占用率必须指向同一张卡。
+        Log.WriteLine(
+            $"[diag-perf] gpu name={second.GpuName ?? "<none>"} memValid={second.GpuMemoryValid} " +
+            $"utilValid={second.GpuUtilizationValid} util={second.GpuUtilizationPercent:0.0}%");
+    }
+
+    /// <summary>DXCore 初始化 + 两帧采样的冒烟。无硬件适配器（服务器 / 老系统）允许不可用。</summary>
+    private static void DxCoreSmoke()
+    {
+        using var monitor = new DxCoreGpuMonitor();
+        monitor.Initialize();
+
+        if (!monitor.HasAdapter)
+        {
+            Log.WriteLine("[diag-perf] dxcore unavailable (allowed)");
+            return;
+        }
+
+        if (monitor.EngineCount <= 0)
+            throw new Exception("adapter present but engine count is zero");
+
+        monitor.TrySample(Stopwatch.GetTimestamp(), out _);
+        Thread.Sleep(1100);
+
+        bool valid = monitor.TrySample(Stopwatch.GetTimestamp(), out double utilization);
+        Log.WriteLine(
+            $"[diag-perf] dxcore adapter={monitor.AdapterName} engines={monitor.EngineCount} " +
+            $"valid={valid} utilization={utilization:0.0}% " +
+            $"vram={monitor.DedicatedUsedBytes}/{monitor.DedicatedTotalBytes} valid={monitor.MemoryValid}");
+
+        if (!valid)
+            throw new Exception("engine running-time query never became valid");
+
+        if (monitor.DedicatedTotalBytes > 0 && !monitor.MemoryValid)
+            throw new Exception("dedicated memory query failed on adapter with dedicated memory");
     }
 
     private static void SteadyAllocation()
@@ -106,12 +141,6 @@ public static class PerfDiagnostics
     {
         MemorySpeedInfo speed = MemorySpeedReader.Read();
         Log.WriteLine($"[diag-perf] smbios valid={speed.Valid} speed={speed.MtS} modules={speed.ModuleCount}");
-
-        using var gpu = new GpuMemoryReader();
-        gpu.Initialize();
-
-        bool available = gpu.TrySample(out GpuMemorySample sample);
-        Log.WriteLine($"[diag-perf] dxgi available={available} gpu={sample.Name ?? "<none>"}");
     }
 
     private static void ExpectSize<T>(int expected) where T : struct

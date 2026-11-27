@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml/badge.svg)](https://github.com/jf200s/TaskMgrLite/actions/workflows/ci.yml)
 
-> 当前版本 **0.1.04** · [Release](https://github.com/jf200s/TaskMgrLite/releases/tag/v0.1.04) · [Changelog](CHANGELOG.md)
+> 当前版本 **0.1.05** · [Release](https://github.com/jf200s/TaskMgrLite/releases/tag/v0.1.05) · [Changelog](CHANGELOG.md)
 
 一个为“更快到达”而做的 Windows 任务管理器替代品。不是信息更多，而是启动更快、操作路径更短、底层解析更干净。
 
@@ -18,7 +18,7 @@
 - **命令行懒加载**：只在行进入可视区或选中时走 `OpenProcess + NtQueryInformationProcess(60)`，LRU 512；`AccessDenied` / `Error` 失败缓存 30 秒后自动重试。
 - **详情面板**：选中行才读取全路径、用户名、命令行；启动时间/PID 等直接来自快照，不重新枚举。
 - **独立网络端口视图**：左侧导航切换全系统 TCP/UDP（IPv4/IPv6），2Hz 后台轮询、按 Key Diff、搜索/排序、进程名反查、完整虚拟化；不在 1Hz 采集路径，切出立即停止。
-- **独立性能视图**：左侧导航切换 CPU、物理内存、系统磁盘/网络吞吐和 GPU 显存；全部走原生 API，60 秒环形历史 + 原生 `Polyline` 折线，1Hz 采集/刷新，切走立即停止采集线程。GPU 占用率按约束固定 N/A，显存 usage 标注为本进程口径。
+- **独立性能视图**：左侧导航切换 CPU、物理内存、系统磁盘/网络吞吐、GPU 显存与引擎占用率；全部走原生 API，60 秒环形历史 + 原生 `Polyline` 折线，1Hz 采集/刷新，切走立即停止采集线程。GPU 部分走 DXCore：全系统专用显存 + 各引擎取最大值的占用率（与任务管理器同口径），不引入 PDH/WMI。
 - **完整右键菜单**：打开文件所在位置、复制 PID、复制路径、结束进程、结束进程树；空白处右键刷新。
 - **树杀按快照 DFS 后序**：后代先于祖先，逐个报告成功/失败；PID 复用用创建时间校验。
 - **排序可保留**：数值列首次点击降序、名称升序；命令行列不支持排序；树形下排序挂起、箭头变暗，切回平铺恢复。批量替换后仍保持选中行。
@@ -66,7 +66,7 @@ D:\path\to\TaskMgrLite.exe
 | `--selftest` | 不创建窗口，运行纯逻辑自检并返回退出码 |
 | `--diag-round3` | 真实内核路径诊断：读命令行、PID 复用保护、单杀/受控进程树杀 |
 | `--diag-round4` | 真实路径/用户名读取、Explorer 参数校验、手动刷新唤醒 |
-| `--diag-perf` | 原生结构布局、首/次帧契约、稳态零分配、SMBIOS/DXGI 降级检查 |
+| `--diag-perf` | 原生结构布局、首/次帧契约、稳态零分配、SMBIOS/DXCore 降级检查 |
 | `--probe-exit` | 启动 3 秒后自动退出，用于启动测量 |
 
 示例：

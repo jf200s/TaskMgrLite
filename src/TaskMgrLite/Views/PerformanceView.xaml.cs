@@ -59,6 +59,7 @@ public partial class PerformanceView : UserControl
         DiskWriteLine.Points = vm.DiskWritePoints;
         NetworkRxLine.Points = vm.NetworkRxPoints;
         NetworkTxLine.Points = vm.NetworkTxPoints;
+        GpuLine.Points = vm.GpuUsagePoints;
     }
 
     private void OnChartUpdated()
@@ -74,6 +75,7 @@ public partial class PerformanceView : UserControl
         DiskWriteLine.InvalidateMeasure();
         NetworkRxLine.InvalidateMeasure();
         NetworkTxLine.InvalidateMeasure();
+        GpuLine.InvalidateMeasure();
     }
 
     private void SyncActivation()

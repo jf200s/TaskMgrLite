@@ -41,6 +41,7 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
     private readonly double[] _diskWriteSamples = new double[HistoryLength];
     private readonly double[] _rxSamples = new double[HistoryLength];
     private readonly double[] _txSamples = new double[HistoryLength];
+    private readonly double[] _gpuSamples = new double[HistoryLength];
 
     private MetricsCollector? _collector;
     private Thread? _thread;
@@ -60,8 +61,9 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
     private string _networkRxText = "↓ —";
     private string _networkTxText = "↑ —";
     private string _gpuNameText = "未检测到硬件适配器";
+    private string _gpuUsageText = "N/A";
+    private string _gpuScaleText = "量程 0–100%";
     private string _gpuMemoryText = "—";
-    private string _gpuBudgetText = "预算 —";
     private string _statusText = "未启动";
 
     public PerformanceViewModel(Dispatcher dispatcher)
@@ -81,6 +83,7 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
     public PointCollection DiskWritePoints { get; } = CreatePoints();
     public PointCollection NetworkRxPoints { get; } = CreatePoints();
     public PointCollection NetworkTxPoints { get; } = CreatePoints();
+    public PointCollection GpuUsagePoints { get; } = CreatePoints();
 
     public bool IsActive => _isActive;
 
@@ -148,22 +151,29 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         private set => Set(ref _gpuMemoryText, value);
     }
 
-    public string GpuBudgetText
-    {
-        get => _gpuBudgetText;
-        private set => Set(ref _gpuBudgetText, value);
-    }
-
     public string StatusText
     {
         get => _statusText;
         private set => Set(ref _statusText, value);
     }
 
-    // v1 明确不提供 GPU 引擎占用率；DXGI 只给显存与预算。
-    public string GpuUsageText => "N/A";
-    public string GpuUsageNote => "DXGI 不提供引擎占用率；v1 不做 D3DKMT";
-    public string GpuMemoryNote => "DXGI 的显存 usage 是本进程口径；全系统占用需 PDH / D3DKMT";
+    public string GpuUsageText
+    {
+        get => _gpuUsageText;
+        private set => Set(ref _gpuUsageText, value);
+    }
+
+    /// <summary>GPU 折线的 Y 轴满量程（动态量程 = 近 20 秒峰值 × 1.2）。
+    /// 曲线高度是相对量程的，必须显示绝对刻度，否则用户会把 25% 看成 100%。</summary>
+    public string GpuScaleText
+    {
+        get => _gpuScaleText;
+        private set => Set(ref _gpuScaleText, value);
+    }
+
+    // 整卡占用率取所有引擎的最大值，不求和；所以 NVENC 忙时总体会高于 3D，与任务管理器一致。
+    public string GpuUsageNote => "整卡取各引擎（3D / Copy / Video…）最大值，与任务管理器一致";
+    public string GpuMemoryNote => "全系统专用显存（DXCore），不是本进程口径";
 
     public void Activate()
     {
@@ -298,6 +308,7 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         Push(_diskWriteSamples, s.DiskValid ? s.DiskWriteBytesPerSec : _diskWriteSamples[^1]);
         Push(_rxSamples, s.NetworkValid ? s.NetworkRxBytesPerSec : _rxSamples[^1]);
         Push(_txSamples, s.NetworkValid ? s.NetworkTxBytesPerSec : _txSamples[^1]);
+        Push(_gpuSamples, s.GpuUtilizationValid ? s.GpuUtilizationPercent : _gpuSamples[^1]);
 
         _uiTick++;
         if (_uiTick % DisplayRefreshTicks != 0)
@@ -323,10 +334,10 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         NetworkTxText = s.NetworkValid ? "↑ " + FormatRate(s.NetworkTxBytesPerSec) : "↑ —";
 
         GpuNameText = string.IsNullOrEmpty(s.GpuName) ? "未检测到硬件适配器" : s.GpuName!;
+        GpuUsageText = s.GpuUtilizationValid ? $"{s.GpuUtilizationPercent:0.0}%" : "N/A";
         GpuMemoryText = s.GpuMemoryValid
-            ? $"本进程 {FormatBytes(s.GpuUsageBytes)} / 专用 {FormatBytes(s.GpuDedicatedBytes)}"
+            ? $"{FormatBytes(s.GpuDedicatedUsedBytes)} / {FormatBytes(s.GpuDedicatedTotalBytes)}"
             : "—";
-        GpuBudgetText = s.GpuMemoryValid ? $"本进程预算 {FormatBytes(s.GpuBudgetBytes)}" : "本进程预算 —";
 
         const double headroom = 1.2;
 
@@ -340,6 +351,13 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         Fill(NetworkRxPoints, _rxSamples, netMax);
         Fill(NetworkTxPoints, _txSamples, netMax);
 
+        // 和 CPU 一样用近 20 秒峰值 ×1.2 的动态量程：空闲时也能看出起伏。
+        // GPU 占用率上限是 100%，量程不再往上放，避免出现 0–120% 这种刻度。
+        // 曲线高度是相对量程的，所以卡片上必须同时显示量程（GpuScaleText）。
+        double gpuMax = Math.Min(100, Math.Max(1, MaxRecent(_gpuSamples, 20) * headroom));
+        Fill(GpuUsagePoints, _gpuSamples, gpuMax);
+        GpuScaleText = $"量程 0–{gpuMax:0}%";
+
         ChartUpdated?.Invoke();
     }
 
@@ -350,12 +368,14 @@ public sealed class PerformanceViewModel : ObservableObject, IDisposable
         Array.Clear(_diskWriteSamples, 0, _diskWriteSamples.Length);
         Array.Clear(_rxSamples, 0, _rxSamples.Length);
         Array.Clear(_txSamples, 0, _txSamples.Length);
+        Array.Clear(_gpuSamples, 0, _gpuSamples.Length);
 
         ResetPoints(CpuPoints);
         ResetPoints(DiskReadPoints);
         ResetPoints(DiskWritePoints);
         ResetPoints(NetworkRxPoints);
         ResetPoints(NetworkTxPoints);
+        ResetPoints(GpuUsagePoints);
     }
 
     private static PointCollection CreatePoints()

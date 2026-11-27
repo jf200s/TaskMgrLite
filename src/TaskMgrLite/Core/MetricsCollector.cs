@@ -13,8 +13,8 @@ namespace TaskMgrLite.Core;
 ///   - CommitValid：GetPerformanceInfo 本轮成功；
 ///   - MemorySpeedValid：SMBIOS 初始化解析成功；
 ///   - DiskValid / NetworkValid：首次采样或速率计算失败时为 false；
-///   - GpuMemoryValid：DXGI 本轮查询成功；
-///   - GpuUtilizationValid：v1 永远为 false，占用率显示 N/A。
+///   - GpuMemoryValid：DXCore 本轮显存查询成功；
+///   - GpuUtilizationValid：DXCore 本轮成功且已有上一帧基线；首次采样 / DXCore 不可用时为 false。
 ///
 /// 任一 Valid 为 false 时，对应数值保留上一份有效值；UI 必须结合标志显示“—”，
 /// 不能把保留值当成新数据。
@@ -43,32 +43,31 @@ public readonly record struct MetricsSnapshot(
     double NetworkTxBytesPerSec,
     bool NetworkValid,
     string? GpuName,
-    ulong GpuDedicatedBytes,
-    ulong GpuBudgetBytes,
-    // DXGI QueryVideoMemoryInfo 的 usage/budget 是“当前进程”口径，不是全系统。
-    ulong GpuUsageBytes,
+    // DXCore：全系统专用显存（不是本进程口径），与任务管理器一致。
+    ulong GpuDedicatedTotalBytes,
+    ulong GpuDedicatedUsedBytes,
     bool GpuMemoryValid,
     double GpuUtilizationPercent,
     bool GpuUtilizationValid);
 
 /// <summary>
-/// CPU 总体 + 物理内存 + 系统磁盘吞吐 + 系统网络吞吐 + GPU 显存 的 1Hz 采集器。
+/// CPU 总体 + 物理内存 + 系统磁盘吞吐 + 系统网络吞吐 + GPU 显存/占用率 的 1Hz 采集器。
 ///
 /// 设计约束：
 ///   1. 不依赖 PDH / WMI / PerformanceCounter；
 ///   2. 稳态采样路径零托管分配：原生缓冲跨 tick 复用，返回值是结构体；
 ///   3. 只允许单个采集线程调用 <see cref="Sample"/>；
 ///   4. 不抛异常：单项失败时保留上一份有效值并清空对应 Valid；
-///   5. 初始化（SMBIOS / DXGI）挂在第一次 Sample 上，不阻塞 UI 启动。
+///   5. 初始化（SMBIOS / DXCore）挂在第一次 Sample 上，不阻塞 UI 启动。
 ///
 /// CPU 口径是内核真值：kernel 时间包含 idle，所以 busy = kernel + user - idle。
-/// GPU 占用率不在 DXGI 能力范围内，v1 固定 N/A。
+/// GPU 显存与引擎占用率都由 DXCore 提供（全系统口径，各引擎取最大值）。
 /// </summary>
 public sealed class MetricsCollector : IDisposable
 {
     private readonly NetworkThroughputReader _network = new();
     private readonly SystemDiskReader _disk = new();
-    private readonly GpuMemoryReader _gpu = new();
+    private readonly DxCoreGpuMonitor _gpuEngine = new();
 
     private ulong _prevIdle;
     private ulong _prevKernel;
@@ -76,7 +75,6 @@ public sealed class MetricsCollector : IDisposable
     private bool _hasCpuBaseline;
 
     private MemorySpeedInfo _memorySpeed;
-    private GpuMemorySample _lastGpu = GpuMemorySample.Empty;
     private MetricsSnapshot _last;
     private long _sequence;
     private bool _initialized;
@@ -148,13 +146,10 @@ public sealed class MetricsCollector : IDisposable
             netTx = currentTx;
         }
 
-        GpuMemorySample gpu = _lastGpu;
-        bool gpuValid = _gpu.TrySample(out GpuMemorySample currentGpu);
-        if (gpuValid)
-        {
-            gpu = currentGpu;
-            _lastGpu = currentGpu;
-        }
+        double gpuUtil = last.Sequence > 0 ? last.GpuUtilizationPercent : double.NaN;
+        bool gpuUtilValid = _gpuEngine.TrySample(timestamp, out double currentGpuUtil);
+        if (gpuUtilValid)
+            gpuUtil = currentGpuUtil;
 
         var snapshot = new MetricsSnapshot(
             Sequence: ++_sequence,
@@ -179,13 +174,12 @@ public sealed class MetricsCollector : IDisposable
             NetworkRxBytesPerSec: netRx,
             NetworkTxBytesPerSec: netTx,
             NetworkValid: netValid,
-            GpuName: gpu.Name,
-            GpuDedicatedBytes: gpu.DedicatedBytes,
-            GpuBudgetBytes: gpu.BudgetBytes,
-            GpuUsageBytes: gpu.UsageBytes,
-            GpuMemoryValid: gpuValid,
-            GpuUtilizationPercent: double.NaN,
-            GpuUtilizationValid: false);
+            GpuName: _gpuEngine.AdapterName,
+            GpuDedicatedTotalBytes: _gpuEngine.DedicatedTotalBytes,
+            GpuDedicatedUsedBytes: _gpuEngine.DedicatedUsedBytes,
+            GpuMemoryValid: _gpuEngine.MemoryValid,
+            GpuUtilizationPercent: gpuUtil,
+            GpuUtilizationValid: gpuUtilValid);
 
         _last = snapshot;
         return snapshot;
@@ -208,7 +202,8 @@ public sealed class MetricsCollector : IDisposable
             _memorySpeed = default;
         }
 
-        _gpu.Initialize();
+        // 选主卡（专用显存最大的硬件适配器）+ 引擎布局 + 显存总量，一次做完。
+        _gpuEngine.Initialize();
     }
 
     private bool ReadCpu(out double percent)
@@ -306,6 +301,6 @@ public sealed class MetricsCollector : IDisposable
         _disposed = true;
         _network.Dispose();
         _disk.Dispose();
-        _gpu.Dispose();
+        _gpuEngine.Dispose();
     }
 }
