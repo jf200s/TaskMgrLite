@@ -1,5 +1,22 @@
 ﻿# Changelog
 
+## [0.1.05] - 2026-11-27
+
+### 变更
+
+- GPU 采集整体迁移到 DXCore（`dxcore.dll`）：删除 `GpuMemoryReader` 与 `DxgiNative`，不再使用 `IDXGIAdapter3.QueryVideoMemoryInfo`。
+- 新增全系统 GPU 引擎占用率：`AdapterEngineRunningTimeMicroseconds` 逐引擎差分，整卡取各引擎最大值（与任务管理器一致，NVENC 忙时会高于 3D）。
+- 显存改为全系统口径：总量取 `DedicatedAdapterMemory`，已用取 `AdapterMemoryUsageBytes` 的 Resident（与 PDH `Dedicated Usage` 逐字节一致）。
+- 选卡按专用显存最大的硬件适配器，软件适配器（WARP）排除；初始化失败自动降级为 N/A。
+- GPU 卡片新增 60 秒折线图：动态量程（近 20 秒峰值 ×1.2，封顶 100%）并显示当前量程；文字改为“全系统专用显存”。
+
+### 验证
+
+- Release 构建 0 warning / 0 error；`check-file-size` 81 个文件 0 失败。
+- `--diag-perf`：5 passed，新增 DXCore 冒烟与显存校验；稳态 0 B（含逐引擎与显存查询）。
+- 逐引擎占用率与 PDH `GPU Engine` 编号、数值一一对应；显存与 PDH `GPU Adapter Memory` 一致。
+- 高负载实测（RTX 5060）：占用率 30–100% 正常跟随，折线动态量程可读。
+
 ## [0.1.04] - 2026-11-26
 
 ### 新增
